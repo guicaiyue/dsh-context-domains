@@ -60,10 +60,11 @@ git push origin add-dsh-context-domains
 |---|---|
 | 一个 PR 最多 3 条 | 只加 1 条 |
 | `package.json` 声明 `dsh.bundle.patch` | ✅ `dsh.bundle.patch: ./cordis.patch.yml` |
-| 仓库创建满 1 天 | 建于 2026-11-09，**仍未满 24h**，门禁会一直卡在这条直到明天 |
+| 仓库创建满 1 天 | 建于 2026-11-09 10:33Z，**2026-11-10 10:33Z 起才达标**；在此之前门禁会卡这一条 |
 | `awesome-lint` + 站点构建 | 双语齐全、无手写 `npm:` 字段 |
 
-仓库年龄这条是自动判定，不针对插件本身；到点自己就达标，不需要推空提交重触发。
+仓库年龄这条是自动判定，不针对插件本身。PR 已提：[#13622](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/13622)
+（2026-11-09）。达标之后往同一分支再推一次即可让门禁重跑，不需要重开 PR。
 
 ## npm 版本号与下载量：不要加字段
 
