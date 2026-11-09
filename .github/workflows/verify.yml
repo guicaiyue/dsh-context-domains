@@ -1,0 +1,36 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+    tags-ignore: ['**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: npm run verify (node 24)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # 没有构建步骤、没有依赖：语法检查 + node --test。
+      # 端到端脚本（test/e2e/*.mjs）需要一台跑着的 DSH，不属于 CI。
+      - name: Verify
+        run: npm run verify
+
+      - name: Pack dry run
+        run: npm pack --dry-run

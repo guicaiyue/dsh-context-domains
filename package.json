@@ -1,22 +1,71 @@
 {
   "name": "dsh-context-domains",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.3.0",
+  "description": "DSH 上下文领域：把一个领域里的 skill 与 tool 归成一块，在会话顶部一键整块开关，设置页里维护领域成员",
   "type": "module",
   "main": "index.js",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
+    "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
-  "files": ["index.js", "lib/**", "client.js", "cordis.patch.yml", "locale/*.json", "icon.svg"],
+  "files": [
+    "index.js",
+    "lib/**",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "docs/*.md",
+    "DESIGN.md",
+    "SPEC.md",
+    "README.md"
+  ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "cordis",
+    "context",
+    "domains",
+    "skills",
+    "tools",
+    "dsh-market"
+  ],
+  "license": "MIT",
+  "author": "guicaiyue",
+  "engines": {
+    "node": ">=22.5.0",
+    "dsh": ">=0.2.2-rc.1"
+  },
+  "scripts": {
+    "lint": "node scripts/syntax-check.mjs",
+    "test": "node --test test/",
+    "test:e2e": "node test/e2e/mask.mjs",
+    "verify": "npm run lint && npm run test",
+    "prepublishOnly": "npm run verify"
+  },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-client-ui-settings"]
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guicaiyue/dsh-context-domains.git"
+  },
+  "homepage": "https://github.com/guicaiyue/dsh-context-domains#readme",
+  "bugs": {
+    "url": "https://github.com/guicaiyue/dsh-context-domains/issues"
   }
 }
