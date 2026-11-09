@@ -1,0 +1,6 @@
+node_modules/
+*.log
+.DS_Store
+# 插件自有数据不随仓库走（运行时落在 $DSH_HOME/context-domains）
+state.json
+*.bad-*
