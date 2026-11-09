@@ -100,14 +100,31 @@ jobs:
             --clobber
 
       # 可选：仓库里配了 NPM_TOKEN secret 才发 npm；没配就跳过，不发红。
+      # 幂等：这个版本已经在 registry 上就跳过，于是「发布成功但后面某步失败」之后
+      # 直接 rerun 这一条 job 不会因为 EPUBLISHCONFLICT 再红一次。
       - name: Publish to npm (optional)
         if: ${{ env.HAS_NPM_TOKEN == '1' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
-          npm publish --access public
-          npm view dsh-context-domains@${{ steps.meta.outputs.version }} version
+          PKG="dsh-context-domains"
+          VERSION="${{ steps.meta.outputs.version }}"
+          if npm view "${PKG}@${VERSION}" version >/dev/null 2>&1; then
+            echo "${PKG}@${VERSION} 已经在 npm 上，跳过发布"
+          else
+            npm publish --access public
+          fi
+          # 刚发上去的版本在 registry 元数据里有几十秒到几分钟的延迟，
+          # 立刻 npm view 会 404，把一次成功的发布判成失败。轮询，超时只警告。
+          for i in $(seq 1 12); do
+            if npm view "${PKG}@${VERSION}" version >/dev/null 2>&1; then
+              echo "registry 已能看到 ${PKG}@${VERSION}"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::warning::npm publish 已返回成功，但 registry 元数据 3 分钟内还没刷新，稍后自行核对"
 
       - name: Summary
         run: |
