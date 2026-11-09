@@ -1,6 +1,6 @@
 {
   "name": "dsh-context-domains",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "DSH 上下文领域：把一个领域里的 skill 与 tool 归成一块，在会话顶部一键整块开关，设置页里维护领域成员",
   "type": "module",
   "main": "index.js",
