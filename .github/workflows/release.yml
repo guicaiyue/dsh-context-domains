@@ -126,6 +126,21 @@ jobs:
           done
           echo "::warning::npm publish 已返回成功，但 registry 元数据 3 分钟内还没刷新，稍后自行核对"
 
+      # 收尾自检：市场条目指向的是稳定别名，它 404 了没人会发现。
+      # 顺带把「删标签再重建把 Release 变成 untagged draft」这类事故变成红灯。
+      - name: Verify the stable download URL
+        run: |
+          set -euo pipefail
+          URL="${{ github.server_url }}/${{ github.repository }}/releases/latest/download/dsh-context-domains.tgz"
+          for i in $(seq 1 10); do
+            CODE="$(curl -sIL -o /dev/null -w '%{http_code}' "$URL" || true)"
+            echo "try $i: $CODE $URL"
+            if [ "$CODE" = "200" ]; then exit 0; fi
+            sleep 6
+          done
+          echo "::error::稳定别名下载地址不是 200：$URL（Release 是不是变成 draft / 资产名改了？）"
+          exit 1
+
       - name: Summary
         run: |
           {
