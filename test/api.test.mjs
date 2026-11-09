@@ -89,7 +89,7 @@ test('快照对冷会话也成立（不激活 agent）', { skip }, async () => {
   assert.ok(value.cost && typeof value.cost.savedChars === 'number')
 })
 
-test('未登录一律 401/403', { skip: false }, async () => {
+test('未登录一律 401/403', { skip }, async () => {
   const response = await fetch(`${BASE}/context-domains/api/health`)
   assert.ok([401, 403].includes(response.status), `expected fence, got ${response.status}`)
 })

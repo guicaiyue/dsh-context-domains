@@ -113,11 +113,14 @@ curl -s -b <cookie> http://127.0.0.1:3080/context-domains/api/health
 ## 测试
 
 ```bash
-npm run verify                                     # 语法检查 + node --test（15 项）
-node --test test/                                  # 纯函数 + 迁移 + HTTP 集成
+npm run verify                                     # 语法检查 + 全部 *.test.*（CI 跑这条）
+npm run test:integration                           # 打到跑着的 dsh（默认 127.0.0.1:3080 + cookie jar）
 node test/e2e/mask.mjs http://127.0.0.1:3080       # 端到端：关领域 → maskProbe 全为 false
 node test/e2e/mcp.mjs  http://127.0.0.1:3080       # 端到端：MCP 工具整块装卸（需第三方来源）
 ```
+
+`test/api.test.mjs` 是集成测试：找不到 cookie jar 时整组跳过，所以 CI 里跑的是
+纯函数 + 迁移那 10 项（`npm run test` 会显示 `skipped 5`）。
 
 ## 发版（git workflow）
 

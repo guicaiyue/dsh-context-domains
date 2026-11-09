@@ -19,10 +19,11 @@
 ## 提交前必须绿
 
 ```bash
-npm run verify     # scripts/syntax-check.mjs（全部 .js/.mjs 过 node --check）+ node --test test/
+npm run verify     # scripts/syntax-check.mjs（全部 .js/.mjs 过 node --check）+ node --test "test/**/*.test.*"
 ```
 
-当前基线：**15 passed / 0 failed**。端到端脚本（`test/e2e/*.mjs`）要一台跑着的 DSH，不在 CI 里。
+当前基线：**10 passed / 5 skipped / 0 failed**（15 项里那 5 项是 `test/api.test.mjs`，没有 dsh-dev 的 cookie jar 就跳过）。
+端到端脚本（`test/e2e/*.mjs`）要一台跑着的 DSH，不在 CI 里。
 
 ## 发版
 
