@@ -1,6 +1,6 @@
 # 上下文领域：把一批 skill / 一批 tool 归纳成一个可整块开关的「领域」。
 # 一处 Host 行（状态、目录发现、限制施加、HTTP API）+ 一个 Client 半边
-# （新会话两个下拉、会话头芯片带、设置页）。
+# （会话顶部一条领域横条 + 设置 → 上下文领域；横条在新会话与对话里是同一个位置）。
 - insert:
     - id: context-domains
       name: dsh-context-domains
