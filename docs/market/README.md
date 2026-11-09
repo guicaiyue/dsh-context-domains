@@ -64,7 +64,10 @@ git push origin add-dsh-context-domains
 | `awesome-lint` + 站点构建 | 双语齐全、无手写 `npm:` 字段 |
 
 仓库年龄这条是自动判定，不针对插件本身。PR 已提：[#13622](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/13622)
-（2026-11-09）。达标之后往同一分支再推一次即可让门禁重跑，不需要重开 PR。
+（2026-11-09）：`PR check` 18 分钟通过（条目、lint、站点构建全绿），`Submission gate`
+只差年龄这一条，原文是「repository is 0.0 days old (needs 1) — nothing to do: this check
+re-runs by itself and should clear in about 23h」，即 2026-11-10 10:33Z 前后自己转绿，
+不用重开 PR、不用推空提交。
 
 ## npm 版本号与下载量：不要加字段
 
