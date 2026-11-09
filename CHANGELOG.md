@@ -4,6 +4,13 @@
 设计迭代号（DESIGN.md 里的 v0.1 / v0.2 / v0.3 领域模型）与发布版本号不同：
 模型定稿在 v0.3，所以**第一个公开版本直接从 0.3.0 起**，不再往回发 0.1 / 0.2。
 
+## 0.3.1
+
+只动发布链路，插件代码与 0.3.0 完全一致：npm 发布步骤改成幂等（版本已存在就跳过，
+rerun 不会 `EPUBLISHCONFLICT`）并在发布后轮询 registry 元数据；Release 建完后自检
+稳定别名 `releases/latest/download/dsh-context-domains.tgz` 是否 200（这次就是它静默
+404 —— 删标签重建把 Release 变成了 untagged draft，而 CI 全绿）。
+
 ## 0.3.0 — 首个公开发布
 
 **领域模型不再分类型**：一个领域里可以同时装 skill 和 tool，`Domain.members` 是
