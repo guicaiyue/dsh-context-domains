@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/icon-180.png" width="72" align="left" hspace="12" vspace="4" alt="dsh-context-domains">
+
 # dsh-context-domains
 
 [![verify](https://github.com/guicaiyue/dsh-context-domains/actions/workflows/verify.yml/badge.svg)](https://github.com/guicaiyue/dsh-context-domains/actions/workflows/verify.yml)
@@ -12,6 +14,8 @@
   悬停展开成员（技能/工具两段，名字用顿号连起来）。新会话与对话是同一个位置。
 - **设置 → 上下文领域**：领域清单 + 成员名单（按技能/工具两段、只有名字 + 复选框），另有建域建议。
 
+![会话顶部的领域条：绿点=已加载、灰点=未加载，点一下整块开关](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-session.png)
+
 ---
 
 ## 效果
@@ -20,15 +24,15 @@
 
 **新会话页**：领域条在顶部，点芯片即可在开会话前定好这次的上下文。
 
-![新会话页：顶部领域条](assets/shot-new-session.png)
+![新会话页：领域条在顶部，点芯片即可定好这次的上下文](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-new-session.png)
 
 **混装领域的成员**：一个领域里同时有技能和工具，悬停列出名字。
 
-![混合领域展开：技能 3 项、工具 4 项](assets/shot-domain-members.png)
+![混装领域展开：技能 3 项、工具 4 项，名字用顿号连起来](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-domain-members.png)
 
 **设置页**：左侧领域清单，右侧成员名单（只有名字 + 勾选框）。
 
-![设置 → 上下文领域](assets/shot-settings.png)
+![设置 → 上下文领域：左侧领域清单，右侧只用名字 + 勾选框](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-settings.png)
 
 ---
 
