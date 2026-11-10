@@ -4,6 +4,12 @@
 设计迭代号（DESIGN.md 里的 v0.1 / v0.2 / v0.3 领域模型）与发布版本号不同：
 模型定稿在 v0.3，所以**第一个公开版本直接从 0.3.0 起**，不再往回发 0.1 / 0.2。
 
+## 0.3.3
+
+README 的截图改用 `raw.githubusercontent.com` 绝对地址，并在标题下加了一张 hero
+（真实会话里的领域条）。相对路径只有 GitHub 仓页能解析，npmjs.com 上是坏图；
+顺手补了 `assets/shot-session.png` 与 `screenshots.json` 四张。插件代码不变。
+
 ## 0.3.2
 
 **`/health` 不再写死版本号。** 它一直回报 `'0.1.0'`（硬编码常量），发到 0.3.x 之后
