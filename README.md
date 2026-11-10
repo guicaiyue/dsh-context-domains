@@ -14,25 +14,29 @@
   悬停展开成员（技能/工具两段，名字用顿号连起来）。新会话与对话是同一个位置。
 - **设置 → 上下文领域**：领域清单 + 成员名单（按技能/工具两段、只有名字 + 复选框），另有建域建议。
 
-![会话顶部的领域条：绿点=已加载、灰点=未加载，点一下整块开关](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-session.png)
+![领域条：绿点=已加载、灰点=未加载，点一下就整块开关](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-bar.png)
 
 ---
 
 ## 效果
 
-> 截图是真机运行，被测对象就是这个插件自己。
+> 真机运行截的，被测对象就是这个插件自己。
 
-**新会话页**：领域条在顶部，点芯片即可在开会话前定好这次的上下文。
+**在真实会话里的位置** —— 会话头正下方一条，不占输入区、不挡消息：
 
-![新会话页：领域条在顶部，点芯片即可定好这次的上下文](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-new-session.png)
+![会话里的领域条：标签页下方那条就是](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-session.png)
 
-**混装领域的成员**：一个领域里同时有技能和工具，悬停列出名字。
+**新会话也一样** —— 开会话前就能定好这次要哪些能力：
 
-![混装领域展开：技能 3 项、工具 4 项，名字用顿号连起来](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-domain-members.png)
+![新会话页顶部的领域条](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-bar-blank.png)
 
-**设置页**：左侧领域清单，右侧成员名单（只有名字 + 勾选框）。
+**一个领域里同时装技能和工具** —— 悬停展开，名字用顿号连起来（技能 3 项、工具 4 项）：
 
-![设置 → 上下文领域：左侧领域清单，右侧只用名字 + 勾选框](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-settings.png)
+![混装领域展开：技能 3 项、工具 4 项](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-members-zoom.png)
+
+**设置 → 上下文领域** —— 左边领域清单，右边成员只有名字 + 勾选框，不区分类型：
+
+![设置页：左侧领域清单，右侧只用名字 + 勾选框](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-settings-zoom.png)
 
 ---
 
