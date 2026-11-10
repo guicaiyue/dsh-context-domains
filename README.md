@@ -14,7 +14,7 @@
   悬停展开成员（技能/工具两段，名字用顿号连起来）。新会话与对话是同一个位置。
 - **设置 → 上下文领域**：领域清单 + 成员名单（按技能/工具两段、只有名字 + 复选框），另有建域建议。
 
-![领域条：绿点=已加载、灰点=未加载，点一下就整块开关](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-bar.png)
+![领域条：绿点=已加载、灰点=未加载，点一下就整块开关](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-bar.png?v=2)
 
 ---
 
@@ -28,7 +28,7 @@
 
 **新会话也一样** —— 开会话前就能定好这次要哪些能力：
 
-![新会话页顶部的领域条](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-bar-blank.png)
+![新会话页顶部的领域条](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-bar-blank.png?v=2)
 
 **一个领域里同时装技能和工具** —— 悬停展开，名字用顿号连起来（技能 3 项、工具 4 项）：
 
