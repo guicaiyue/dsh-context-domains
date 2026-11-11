@@ -85,7 +85,7 @@ re-runs by itself and should clear in about 23h」，即 2026-11-10 10:33Z 前�
 ## 图标与截图：声明在自己仓库里
 
 - 图标：`assets/icon-180.png`（180×180 位图；SVG 会被拒），条目里用 `icon:` 指向它。
-- 截图：根目录 `screenshots.json` 列 3 张，路径相对该文件，图在 `assets/` 里。
+- 截图：根目录 `screenshots.json` 列 5 张（条、会话、成员浮层、设置页、压缩阈值特写），路径相对该文件，图在 `assets/` 里。
   换图只推自己的仓库，不用再回来提 PR，下一次构建自动生效。
 
 ## 会不会自动出现

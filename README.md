@@ -18,7 +18,7 @@
   显示开关可切「全部成员 / 已选 / 未选」；新建领域默认勾上「默认启用」。不想一条条勾时，
   点左列 `＋ 新建` 旁的 `✦`，弹窗里是给 AI 的归类 prompt，一键复制。
 
-![领域条：绿点=已加载、灰点=未加载，点一下就整块开关](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-bar.png?v=2)
+![领域条右端：绿点=已加载、灰点=未加载，最右边是压缩阈值计数器](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-bar.png?v=3)
 
 ---
 
@@ -28,11 +28,11 @@
 
 **在真实会话里的位置** —— 会话头正下方一条，不占输入区、不挡消息：
 
-![会话里的领域条：标签页下方那条就是](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-session.png)
+![会话里的领域条：标签页下方那条就是，最右端是压缩阈值计数器](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-session.png?v=3)
 
 **新会话也一样** —— 开会话前就能定好这次要哪些能力：
 
-![新会话页顶部的领域条](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-bar-blank.png?v=2)
+![新会话页顶部的领域条（右端同样是计数器）](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-bar-blank.png?v=3)
 
 **一个领域里同时装技能和工具** —— 悬停展开，名字用顿号连起来（技能 3 项、工具 4 项）：
 
@@ -78,6 +78,11 @@ dsh plugin --profile web add link:/workspace/dsh-context-domains
 `compaction = { budgetTokens, at }`；v0.2 的 `skills/tools` 两串会在读取时自动合并。
 
 ## 压缩阈值（条最右边那个计数器）
+
+![压缩阈值计数器：左减右加，中间是数字，单位 10 万 token](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-budget.png)
+
+条最右端的 `− 5 +`：左减右加、中间是数字，**单位 10 万 token**（`5` = 50 万，`2` = 20 万是下限）。
+到数就压，改完下一轮生效，不用重启；悬停能看到换算、已接管几个压缩引擎、以及降级原因。
 
 上下文压缩由 `compaction-basic` 决定，判定只有一句：`measurement.totalTokens >= thresholdTokens`，
 而 `thresholdTokens = floor(min(window × thresholdRatio, window − 输出预留 − headroomTokens))`。

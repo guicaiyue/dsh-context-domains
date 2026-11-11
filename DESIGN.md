@@ -876,6 +876,19 @@ loadedDomains → members
 | 设置页 | 左列 `4 项`，右侧 `技能 4 / 工具 0` 两段，行内只有名字 + 复选框 |
 | 测试 | `node --test test/` 14 项全绿（含迁移用例）；`test/e2e/mask.mjs` 通过 |
 
+### 15.5 悬停面板的高度上限（v0.4 手感修补）
+
+面板按内容自然撑高，一个装了三十来个 skill 的领域（比如「插件维护」）会把弹窗拉到盖住半个对话区，
+而它的用途只是「看一眼这个域里有啥」。改成有上限、内部滚动：
+
+- `max-height = min(视口高 − 弹窗顶 − 12, 55% 视口高)`，下限 132px；`top` 仍然是芯片下沿 + 6。
+- 弹窗本身 `display:flex; flex-direction:column`，头（`.cdx-pop-hd`）和尾（`.cdx-pop-ft`）`flex:0 0 auto`，
+  中间的 `.cdx-pop-body` 装两段成员名并 `overflow-y:auto`，滚动条颜色用宿主
+  `--dsw-alias-scrollbar-bg-l2` / `-hover-l2`，与设置页成员表同一套。
+- `resize` 只在弹窗打开期间监听（`openId !== null`），窗口缩放后重算上限，不留下被切掉的底边。
+- 实测（无头 Chrome + CDP，同一段 CSS 拼的独立页）：60 个名字在 1000×700 / 1280×1000 / 900×420
+  三档视口下弹窗高 385 / 550 / 231px，成员区 `scrollHeight 725` 恒大于可视高，尾注始终在视口内。
+
 ### 17. 第三方来源验收（做完即撤）
 
 2026-11-09 在容器里临时挂了 `dsh-mcp-client` × 2（memory / fsdemo）、`dsh-skill-office`、`dsh-skill-badge`，

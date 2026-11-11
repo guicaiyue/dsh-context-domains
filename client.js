@@ -55,10 +55,19 @@ window.__ModuleLoader__.load({
 .cdx-more:hover{background:var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12));
   color:var(--dsw-alias-label-primary)}
 .cdx-pop{position:fixed;z-index:300;width:310px;padding:8px;box-sizing:border-box;
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;
   background:var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-layer-1));
   border:1px solid var(--dsw-alias-border-l2);border-radius:12px;
   box-shadow:0 18px 48px rgba(0,0,0,.32);color:var(--dsw-alias-label-primary)}
-.cdx-pop-hd{display:flex;align-items:baseline;gap:7px;padding:2px 4px 7px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+/* 头尾固定，中间成员清单自己滚：领域装了几十个 skill 也不会把弹窗拉成一整屏 */
+.cdx-pop-hd{display:flex;align-items:baseline;gap:7px;padding:2px 4px 7px;
+  border-bottom:1px solid var(--dsw-alias-border-l1);flex:0 0 auto}
+.cdx-pop-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding-right:2px;scrollbar-width:thin;
+  scrollbar-color:var(--dsw-alias-scrollbar-bg-l2, rgba(127,127,127,.35)) transparent}
+.cdx-pop-body::-webkit-scrollbar{width:6px}
+.cdx-pop-body::-webkit-scrollbar-thumb{background:var(--dsw-alias-scrollbar-bg-l2, rgba(127,127,127,.35));border-radius:3px}
+.cdx-pop-body::-webkit-scrollbar-thumb:hover{background:var(--dsw-alias-scrollbar-hover-l2, rgba(127,127,127,.55))}
 .cdx-pop-hd b{font-size:12.5px}
 .cdx-pop-sub{color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));font-size:10.5px;
   font-variant-numeric:tabular-nums}
@@ -531,8 +540,17 @@ window.__ModuleLoader__.load({
       useOverlayPadding(owned ? box : null)
       const [openId, setOpenId] = React.useState(null)
       const [chipRect, setChipRect] = React.useState(null)
+      const [viewHeight, setViewHeight] = React.useState(() => (typeof window === 'undefined' ? 0 : window.innerHeight))
       const close = React.useCallback(() => setOpenId(null), [])
       useAnchoredPopover(openId !== null, close)
+
+      // 弹窗开着时窗口尺寸变了要重算高度上限，否则窗口缩小后清单底部会被挤到屏幕外
+      React.useEffect(() => {
+        if (openId === null) return undefined
+        const onResize = () => setViewHeight(window.innerHeight)
+        window.addEventListener('resize', onResize)
+        return () => window.removeEventListener('resize', onResize)
+      }, [openId])
 
       const toggle = async (domain) => {
         try {
@@ -576,6 +594,14 @@ window.__ModuleLoader__.load({
         ),
       )
 
+      // 高度上限：最多占视口 55%，且不越过屏幕下沿；剩下的交给 .cdx-pop-body 自己滚
+      const viewport = viewHeight > 0 ? viewHeight : (typeof window === 'undefined' ? 720 : window.innerHeight)
+      const popTop = Math.round((chipRect?.bottom ?? 0) + 6)
+      const cap = Math.max(132, Math.min(
+        Math.round(viewport - popTop - 12),
+        Math.round(viewport * 0.55),
+      ))
+
       const popover = openDomain && chipRect
         ? portal(
             h(
@@ -586,7 +612,8 @@ window.__ModuleLoader__.load({
                 'aria-label': openDomain.name,
                 style: {
                   left: Math.round(Math.max(8, Math.min(chipRect.left, window.innerWidth - 318))) + 'px',
-                  top: Math.round(chipRect.bottom + 6) + 'px',
+                  top: popTop + 'px',
+                  maxHeight: cap + 'px',
                 },
                 onMouseLeave: close,
               },
@@ -596,16 +623,20 @@ window.__ModuleLoader__.load({
                 h('b', null, openDomain.name),
                 h('span', { className: 'cdx-pop-sub' }, `${counts(openDomain).total} 项`),
               ),
-              ['skill', 'tool'].map((type) => {
-                const names = (openDomain.members ?? []).filter((m) => m.type === type).map((m) => m.name)
-                if (names.length === 0) return null
-                return h(
-                  React.Fragment,
-                  { key: type },
-                  h('div', { className: 'cdx-grp' }, type === 'skill' ? '技能' : '工具', h('span', { className: 'n' }, String(names.length))),
-                  h('p', { className: 'cdx-names' }, names.join('、')),
-                )
-              }),
+              h(
+                'div',
+                { className: 'cdx-pop-body' },
+                ['skill', 'tool'].map((type) => {
+                  const names = (openDomain.members ?? []).filter((m) => m.type === type).map((m) => m.name)
+                  if (names.length === 0) return null
+                  return h(
+                    React.Fragment,
+                    { key: type },
+                    h('div', { className: 'cdx-grp' }, type === 'skill' ? '技能' : '工具', h('span', { className: 'n' }, String(names.length))),
+                    h('p', { className: 'cdx-names' }, names.join('、')),
+                  )
+                }),
+              ),
               h('div', { className: 'cdx-pop-ft' }, '点条上的名字开关这个领域；这里只列出它装了哪些东西'),
             ),
           )
