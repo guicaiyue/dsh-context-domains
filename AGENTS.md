@@ -22,7 +22,9 @@
 npm run verify     # scripts/syntax-check.mjs（全部 .js/.mjs 过 node --check）+ node --test "test/**/*.test.*"
 ```
 
-当前基线：**10 passed / 5 skipped / 0 failed**（15 项里那 5 项是 `test/api.test.mjs`，没有 dsh-dev 的 cookie jar 就跳过）。
+当前基线：**23 项，18 passed / 5 skipped / 0 failed**（那 5 项是 `test/api.test.mjs`，没有 dsh-dev 的 cookie jar 就跳过；
+本机有 jar 时是 23 passed）。`test/compaction.test.js` 把 `compaction-basic` 的
+`resolveTargetPolicy` / `resolveCompactSpec` 抄了一份，测的是「预算 → thresholdTokens」的真实换算。
 端到端脚本（`test/e2e/*.mjs`）要一台跑着的 DSH，不在 CI 里。
 
 ## 发版

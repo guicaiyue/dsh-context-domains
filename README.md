@@ -12,6 +12,8 @@
   （skill 从模型目录里摘掉、tool 从工具表里移除）。
 - **领域条**：会话里、会话头正下方一行，`● 名称`，绿点=已加载、灰点=未加载，点一下开关；
   悬停展开成员（技能/工具两段，名字用顿号连起来）。新会话与对话是同一个位置。
+- **压缩阈值计数器**：领域条最右边 `− 5 +`，中间是数字、单位 10 万 token（2 = 20 万，最低值）。
+  它就是上下文压缩的触发线：到数就压，**改完下一轮生效，不用重启 dsh**。
 - **设置 → 上下文领域**：左列领域清单，右侧 `搜索 → 技能/工具页签 + 显示开关 → 成员列表`，
   显示开关可切「全部成员 / 已选 / 未选」；新建领域默认勾上「默认启用」。不想一条条勾时，
   点左列 `＋ 新建` 旁的 `✦`，弹窗里是给 AI 的归类 prompt，一键复制。
@@ -72,12 +74,34 @@ dsh plugin --profile web add link:/workspace/dsh-context-domains
 
 会话级选择存在 `$DSH_HOME/context-domains/state.json`（原子写、串行写、坏文件自动备份）。
 数据结构：`Domain { id, name, icon?, description?, defaultOn, members[{type,name}] }`、
-`sessions[id] = { domains: string[], excluded: {skills,tools} }`；v0.2 的 `skills/tools` 两串会在读取时自动合并。
+`sessions[id] = { domains: string[], excluded: {skills,tools} }`、
+`compaction = { budgetTokens, at }`；v0.2 的 `skills/tools` 两串会在读取时自动合并。
+
+## 压缩阈值（条最右边那个计数器）
+
+上下文压缩由 `compaction-basic` 决定，判定只有一句：`measurement.totalTokens >= thresholdTokens`，
+而 `thresholdTokens = floor(min(window × thresholdRatio, window − 输出预留 − headroomTokens))`。
+它的 config 装载时就被 deepFreeze，又挂在 preset 的 isolate 组里（profile 的 `cordis.patch.yml`
+够不到），所以静态改阈值两条路都得重启。
+
+这里改成运行期接管：给每个 `(provider, model)` 造一条精确的 `modelPolicies` 覆盖
+（`thresholdRatio: 1`、`headroomTokens = 窗口 − 输出预留 − 预算`），解出来阈值就等于预算本身；
+`modelPolicies` 是每次 `compactPressure` 现查的，所以重写引擎实例的 `config` 立刻生效。
+
+- **引擎怎么找**：preset 是按需挂载的，引擎在 isolate realm 里，`ctx.get('compaction')` 拿不到。
+  按 `ctx.reflect.store` 扫符号，取 `name === 'compaction'` 且 fiber 已激活的实现。
+- **多引擎**：每个挂着的 preset（standard / ptc / minimal / 自定义）各有一个引擎，全部接管，同一个预算。
+- **会话无关**：预算是全局的（引擎按 preset 一个、多会话共用），条在哪个会话上都改同一个数。
+- **降级**：模型没声明 `contextWindow`、`llm` 服务不可见、还没有引擎挂载（冷启动尚无会话）时，
+  阈值回落到该模型的原生判定，并在 `snapshot.compaction.degraded` 里如实列出原因（条上的数字变琥珀色）。
+- **预算高于模型窗口**：会贴住物理上限（`window − 输出预留`），`snapshot` 里 `clamped: true`；
+  真超了仍由原生的 context-overflow 恢复兜底。
 
 ## API
 
-`/context-domains/api/{health,snapshot,catalog,domains,toggle,exclude,probe}`，全部经 `requestRejection` 栅栏。
+`/context-domains/api/{health,snapshot,catalog,domains,toggle,exclude,probe,compaction}`，全部经 `requestRejection` 栅栏。
 `POST /toggle` 只需要 `{ sessionId, domainId, enabled }`（v0.3 起没有 `kind`）。
+`POST /compaction` 收 `{ tokens }`（单位 10 万，最低 2）或 `{ budgetTokens }`（绝对值，收进 20 万～1000 万）。
 
 ## 配置
 

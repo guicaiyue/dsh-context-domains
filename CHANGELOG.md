@@ -6,6 +6,36 @@
 
 ## 未发布
 
+### v0.4.0 · 顶栏压缩阈值计数器
+
+上下文压缩的触发线现在能在会话顶栏最右边直接改，**改完下一轮生效，不用重启 dsh**。
+
+- **计数器**：领域条最右端 `− 数字 +`，单位 10 万 token，最低 2（20 万），每格 10 万。
+  值是全局的（压缩引擎按 preset 一个、多会话共用），所以任何会话上改都立刻对全场生效，
+  悬停能看到「换算成多少万 / 已接管几个引擎 / 降级原因」。
+- **怎么生效**：`compaction-basic` 的 config 装载即 deepFreeze，且挂在 preset 的 isolate 组里
+  （`cordis.patch.yml` 够不到），所以不碰它的 config 文件：给每个 `(provider, model)` 生成一条
+  精确的 `modelPolicies` 覆盖（`thresholdRatio: 1`、`headroomTokens = 窗口 − 输出预留 − 预算`），
+  解出来 `thresholdTokens` 就等于预算；`modelPolicies` 每次 `compactPressure` 现查，
+  于是重写引擎实例的 `config` 就是「立即生效」。
+- **引擎发现**：preset 按需挂载、引擎在 isolate realm 里，`ctx.get('compaction')` 拿不到 ——
+  按 `ctx.reflect.store` 扫 `name === 'compaction'` 且 fiber 激活的实现，启动 + 每 4s + 会话创建时重扫。
+- **降级说清楚**：模型没声明 `contextWindow`、`llm` 不可见、冷启动还没挂引擎时回落原生阈值，
+  原因写进 `snapshot.compaction.degraded`，条上数字转琥珀色；预算高于窗口时贴住物理上限并标 `clamped`。
+- **新端点**：`POST /context-domains/api/compaction`（`{tokens}` 或 `{budgetTokens}`）；
+  `GET /snapshot`、`GET /health` 多一个 `compaction` 块。预算随 `state.json` 一起持久化
+  （`compaction.budgetTokens`，缺失回落 50 万 = 原来 0.5 × 1M 的口径）。
+- **测试**：`test/compaction.test.js` 照抄 `compaction-basic` 的 `resolveTargetPolicy` /
+  `resolveCompactSpec`，验证「预算 < 原生阈值 / > 原生阈值 / 超窗口 / 解析失败降级 / 模型切换路径」
+  五条换算，21 passed。
+- **真机验证**（`/tmp/dshprobe` 起的独立实例，`link:` 到本仓库，不碰在跑的 dsh）：
+  `engines: 4`（web-app 的 4 个 preset 各挂一个引擎，扫 `reflect.store` 全部拿到）、
+  `zifei/deepseek-v4.1-flash` 解析出 `1000000 / 64000`；`POST {tokens:3}` 后每个引擎的 policy 变成
+  `thresholdRatio:1, headroomTokens:636000, retainTokens:75000` → `thresholdTokens = 300000`；
+  `{tokens:12}`（1.2M > 936k 容量）→ `headroomTokens:0`、`thresholdTokens:936000`、`clamped:true`；
+  `{tokens:1}` 收到 200000；预算随 `state.json` 跨重启保留。
+
+
 设置页三处手感问题，都在 `client.js`（另有一行 `lib/http.js` 的建域默认值）：
 
 - **技能 / 工具拆成页签**：原来两段成员挤在同一个滚动区里，滚到下面已经忘了在看哪一类。

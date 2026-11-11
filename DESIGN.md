@@ -958,3 +958,118 @@ manageUnknownPresets: false
 
 结论：本插件与 archify 的冲突已消除（`managed: false`，完全不介入它的 preset）；剩下的失败是
 「模型没写文件」与「重启打断」，与领域机制无关。
+
+---
+
+## 17. 压缩阈值：运行期接管 compaction-basic 的压力线（v0.4）
+
+### 17.1 需求与约束
+
+技能与工具把每轮的固定开销抬高，所以「什么时候压缩」不该由模型窗口的固定比例决定，
+而该由用户按「模型能力 / token 花费 / 任务性质 / 会话现状」现场调。约束三条：
+
+1. 调完**不重启 dsh**立刻生效；
+2. 与模型无关（换模型不用重新调）；
+3. 界面只是顶栏最右边一个 `− 数字 +`（单位 10 万，最低 2）。
+
+### 17.2 静态改阈值为什么不行
+
+`compaction-basic` 的判定链只有一句：
+
+```js
+thresholdTokens = floor(min(contextWindow * thresholdRatio, contextWindow - reservedOutput - headroomTokens))
+if (measurement.totalTokens < thresholdTokens) return null      // 不压
+```
+
+它的 config 在 `resolveConfig()` 里被 `deepFreeze`，而且这行挂在 preset
+（`@deepseek-ai/dsh-agent-preset` → registry `mountPreset`）的 `isolate: { compaction: true }`
+组里 —— profile 的 `cordis.patch.yml` 只能按 id 命中顶层或 `group: true` 节点，够不到 preset
+内部子节点（同 id 的顶层节点是 web-app 关掉的那份副本，写上去静默无效）。所以静态改阈值
+只能改 preset 声明文件，然后重启；`~/.dsh/compaction-threshold.py` 就是那条路。
+
+### 17.3 运行期接管：把预算写成一条精确的 modelPolicies 覆盖
+
+关键事实：`modelPolicies` 不是装载时算完就固化的 —— `compactPressure()` 每次都调
+`resolveTargetPolicy(this.config, target)` 现查。于是只要重写引擎实例的 `config`：
+
+| 字段 | 取值 | 解得 |
+|---|---|---|
+| `thresholdRatio` | `1` | `window × 1 = window` |
+| `headroomTokens` | `window - reservedOutput - budget`（下限 0） | `window - out - headroom = budget` |
+| `retainTokens` | `budget × 0.25`（必须 < 阈值，原生会抛） | 压缩后保留的原文尾巴 |
+
+`min(window, budget)` 就是预算本身；预算超过 `window - 输出预留` 时自然贴住物理上限。
+`reservedOutput` 取 `header.config.maxTokens ?? info.defaultMaxTokens`，与原生同一口径
+（这里用 `defaultMaxTokens` 近似：会话级 `maxTokens` 极少被显式设过，设了就少算这几十 k，
+不影响「到数就压」的语义）。
+
+### 17.4 引擎怎么找到（isolate realm）
+
+preset 是**按需挂载**的：一个 preset 定义挂一次（`createScope(owner, key)`），所有选它的会话共用
+同一个引擎实例。引擎在 isolate realm 的符号里，`ctx.get('compaction')` 从宿主平面拿不到
+（realm 私有符号），所以按服务表扫：
+
+```js
+for (const key of Object.getOwnPropertySymbols(ctx.reflect.store)) {
+  const impl = bag[key]
+  if (impl?.name !== 'compaction') continue
+  if (impl.ctx?.fiber?.state !== 2) continue        // cordis 的「已激活」
+  impl.value.compactPressure                        // 就是引擎
+}
+```
+
+`impl.value` 只在该 fiber 激活后才有值，所以扫描天然跳过未挂载/已卸载的行。
+`ctx.reflect.store` 是整个 runtime 共用的一张表（`ReflectService` 只在 root 构造，子 ctx 原型继承），
+isolate realm 只是不同的符号键 —— 这也是 registry 自己的 `leakedServices()` 用的同一套读法。
+
+### 17.5 为什么包 `compactPressure` 而不是换引擎
+
+引擎被三处调用：`agent/pre-step`（自动压缩）、`agent/request`（模型切换，`requireBelowThreshold = true`）、
+`compactIfNeeded`（overflow 恢复）。三条都走 `this.compactPressure(...)`，包一层全覆盖；
+而且这是唯一能拿到 `header.config`（真实路由的 provider/model）的地方 —— 模型的
+`contextWindow` 只能在走到这一步时才知道，所以「按目标解析窗口」这个动作只能放在这里：
+
+```
+compactPressure(agent, header, signal, requireBelowThreshold)
+  → 第一次见到该 target：await llm.resolveModelInfo()，学窗口，重写所有引擎的 config（同步）
+  → 原方法照跑
+```
+
+窗口学到之后进缓存，后续调用零开销；模型切换那条路也照样走（阈值同样被钉住，所以切到小窗口
+模型时会按该模型的上限先压，安全语义不变）。
+
+### 17.6 降级矩阵
+
+| 情形 | 行为 | 用户看到 |
+|---|---|---|
+| 冷启动、还没有会话 | 没有引擎可接管 | `degraded: 没有在线的 compaction 引擎（preset 还没挂载）`，数字琥珀色 |
+| 模型没声明 `contextWindow` | 该 target 回落原生判定 | `degraded: 模型没有声明 contextWindow` |
+| `llm` 服务不可见 | 不接管 | `degraded: llm 服务不可见，预算未接管` |
+| 预算 > 模型窗口 | 贴住 `window - 输出预留` | `targets[].clamped = true`，悬停提示「实际按窗口上限压」 |
+| 预算 < 原生比例阈值 | 照样提前压 | 无（这是正常路径） |
+
+### 17.7 真机验证（独立实例，不碰在跑的 dsh）
+
+在 `/tmp/dshprobe` 起了一个独立 dsh 实例（`--port 13999`，profile 用 `link:` 指到本仓库，
+LLM patch 抄在跑的 profile），实测：
+
+| 观察 | 结果 |
+|---|---|
+| 引擎扫描 | `engines: 4`（web-app 的 standard / minimal / ptc / cordis 各挂一个） |
+| 目标解析 | `zifei/deepseek-v4.1-flash` → `contextWindow 1000000`、`defaultMaxTokens 64000` |
+| `POST {tokens:3}` | 每个引擎 `modelPolicies`: `{thresholdRatio:1, headroomTokens:636000, retainTokens:75000}` → `thresholdTokens = 300000` |
+| `POST {tokens:12}` | `headroomTokens:0, retainTokens:234000` → `thresholdTokens = 936000`，`clamped: true` |
+| `POST {tokens:1}` | 收成 200000（下限）；`{tokens:"x"}` → 400 bad-request |
+| 持久化 | 预算写进 `state.json` 的 `compaction`，重启后仍在 |
+| 降级 | 适配器未注册时 `degraded: [{provider, model, reason: 'no adapter registered for provider "zifei"'}]`，配置保持原生 |
+
+没验到的只有「阈值到点真的压了一次」：那需要一个真实会话跑满预算，属于模型/网络侧的动作，
+换算链已由上面 + `test/compaction.test.js` 覆盖。
+
+### 17.8 落点
+
+- `lib/compaction.js`：控制器（扫描 / 包装 / 换算 / 状态）。
+- `lib/runtime.js`：`budget.start()`（`ctx.effect` 持有，卸载时还原原生 config、清掉定时器）。
+- `lib/http.js`：`POST /compaction`，`/snapshot`、`/health` 多一个 `compaction` 块。
+- `lib/store.js`：`compaction = { budgetTokens, at }`（读侧缺省 50 万，等于原来 0.5 × 1M 的口径）。
+- `client.js`：`CompactionCounter`，渲染在 `.cdx-bar` 最右侧（`chips` 之后）。

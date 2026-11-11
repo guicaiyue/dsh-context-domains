@@ -35,6 +35,21 @@ window.__ModuleLoader__.load({
 .cdx-dot{width:6px;height:6px;border-radius:50%;flex:0 0 6px;background:var(--dsw-alias-state-idle-primary)}
 .cdx-chip[aria-checked="true"] .cdx-dot{background:var(--dsw-alias-state-success-primary);
   box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-success-primary) 22%, transparent)}
+/* 压缩阈值计数器：条的最右边，左减右加、中间是数字（单位 10 万 token） */
+.cdx-budget{display:inline-flex;align-items:center;flex:0 0 auto;gap:1px;height:22px;margin-left:8px;padding:0 3px;
+  border:1px solid var(--dsw-alias-border-l1);border-radius:999px;
+  background:color-mix(in srgb, var(--dsw-alias-bg-layer-1) 72%, transparent);
+  font-variant-numeric:tabular-nums;user-select:none}
+.cdx-budget-btn{display:grid;place-items:center;width:17px;height:17px;padding:0;border:0;border-radius:50%;
+  background:transparent;font:inherit;font-size:12px;line-height:1;cursor:pointer;
+  color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
+.cdx-budget-btn:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.14));
+  color:var(--dsw-alias-label-primary)}
+.cdx-budget-btn:disabled{opacity:.3;cursor:default}
+.cdx-budget-num{min-width:17px;text-align:center;font-size:11.5px;font-weight:600;
+  color:var(--dsw-alias-label-primary);cursor:default}
+.cdx-budget[data-busy="true"]{opacity:.55}
+.cdx-budget[data-degraded="true"] .cdx-budget-num{color:var(--dsw-alias-label-warning, #e8a33d)}
 .cdx-more{flex:0 0 auto;width:22px;height:22px;border-radius:6px;border:0;background:transparent;
   color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));cursor:pointer;line-height:1}
 .cdx-more:hover{background:var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12));
@@ -446,6 +461,66 @@ window.__ModuleLoader__.load({
       return { skills, tools, total: skills + tools }
     }
 
+    /* ------------------------------------------------- 压缩阈值计数器 */
+    // 条的最右边：左减右加，中间是数字，单位 10 万 token（2 = 20 万，最低值）。
+    // 值是全局的（压缩引擎按 preset 挂一个，多会话共用），所以条上改了立刻对全场生效。
+    function CompactionCounter({ info }) {
+      const [busy, setBusy] = React.useState(false)
+      if (info === null || info === undefined) return null
+      const step = info.stepTokens > 0 ? info.stepTokens : 100000
+      const min = Math.round((info.minTokens ?? 200000) / step)
+      const max = Math.round((info.maxTokens ?? 10000000) / step)
+      const value = Math.round((info.budgetTokens ?? min * step) / step)
+      const wan = Math.round((info.budgetTokens ?? 0) / 10000)
+      const clamped = Array.isArray(info.targets) && info.targets.some((target) => target.clamped === true)
+      const degraded = Array.isArray(info.degraded) && info.degraded.length > 0
+
+      const move = async (delta) => {
+        const next = Math.min(max, Math.max(min, value + delta))
+        if (busy || next === value) return
+        setBusy(true)
+        try {
+          await call('/compaction', { tokens: next })
+          broadcast()
+        } catch (error) {
+          console.warn('[context-domains] compaction budget failed', error)
+        } finally {
+          setBusy(false)
+        }
+      }
+
+      const title = `上下文压缩阈值 ${wan} 万 token`
+        + `（${value} × ${step / 10000} 万，最低 ${min}）\n`
+        + `全局生效：所有会话共用这一个数；改了下一轮就用新值，不用重启。\n`
+        + (clamped ? '当前模型窗口比这个数小，实际按窗口上限压。\n' : '')
+        + (degraded
+          ? `降级：${info.degraded.map((item) => item.reason).join('；')}`
+          : `已接管 ${info.engines} 个 compaction 引擎`)
+
+      return h(
+        'div',
+        {
+          className: 'cdx-budget',
+          role: 'group',
+          'aria-label': '上下文压缩阈值',
+          'data-busy': busy ? 'true' : 'false',
+          'data-degraded': degraded ? 'true' : 'false',
+          title,
+        },
+        h('button', {
+          className: 'cdx-budget-btn', type: 'button', 'aria-label': '降低压缩阈值 10 万 token',
+          disabled: busy || value <= min,
+          onClick: () => void move(-1),
+        }, '−'),
+        h('span', { className: 'cdx-budget-num', 'aria-live': 'polite' }, String(value)),
+        h('button', {
+          className: 'cdx-budget-btn', type: 'button', 'aria-label': '提高压缩阈值 10 万 token',
+          disabled: busy || value >= max,
+          onClick: () => void move(1),
+        }, '+'),
+      )
+    }
+
     /* ------------------------------------------------------------- 领域条 */
     function DomainBar(props) {
       const sessionId = props.sessionId
@@ -469,7 +544,11 @@ window.__ModuleLoader__.load({
       }
 
       if (!owned) return h('span', { className: 'cdx-slot', 'aria-hidden': 'true' })
-      if (!snapshot || snapshot.domains.length === 0) return null
+      if (!snapshot) return null
+      // 一个领域都没有也留着条：压缩阈值计数器挂在同一条上（老 Host 没有这个块就照旧隐藏）
+      const compaction = snapshot.compaction ?? null
+      if (snapshot.domains.length === 0 && compaction === null) return null
+      const counter = h(CompactionCounter, { info: compaction })
       const openDomain = openId === null ? null : snapshot.domains.find((d) => d.id === openId)
 
       const chipList = snapshot.domains.map((domain) =>
@@ -538,7 +617,7 @@ window.__ModuleLoader__.load({
           React.Fragment,
           null,
           h('span', { ref: anchorRef, className: 'cdx-slot', 'aria-hidden': 'true' }),
-          h('div', { className: 'cdx-fallback', role: 'group', 'aria-label': '上下文领域' }, chipList),
+          h('div', { className: 'cdx-fallback', role: 'group', 'aria-label': '上下文领域' }, chipList, counter),
           popover,
         )
       }
@@ -558,6 +637,7 @@ window.__ModuleLoader__.load({
               title: '点领域开关；在 设置 → 上下文领域 里管理领域',
             },
             h('div', { className: 'cdx-bar-chips' }, chipList),
+            counter,
           ),
         ),
         popover,
