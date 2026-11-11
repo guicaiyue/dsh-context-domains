@@ -12,7 +12,9 @@
   （skill 从模型目录里摘掉、tool 从工具表里移除）。
 - **领域条**：会话里、会话头正下方一行，`● 名称`，绿点=已加载、灰点=未加载，点一下开关；
   悬停展开成员（技能/工具两段，名字用顿号连起来）。新会话与对话是同一个位置。
-- **设置 → 上下文领域**：领域清单 + 成员名单（按技能/工具两段、只有名字 + 复选框），另有建域建议。
+- **设置 → 上下文领域**：左列领域清单，右侧 `搜索 → 技能/工具页签 + 显示开关 → 成员列表`，
+  显示开关可切「全部成员 / 已选 / 未选」；新建领域默认勾上「默认启用」。不想一条条勾时，
+  点左列 `＋ 新建` 旁的 `✦`，弹窗里是给 AI 的归类 prompt，一键复制。
 
 ![领域条：绿点=已加载、灰点=未加载，点一下就整块开关](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-bar.png?v=2)
 
@@ -34,7 +36,7 @@
 
 ![混装领域展开：技能 3 项、工具 4 项](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-members-zoom.png)
 
-**设置 → 上下文领域** —— 左边领域清单，右边成员只有名字 + 勾选框，不区分类型：
+**设置 → 上下文领域** —— 左边领域清单；右边搜索、技能/工具页签、显示开关三行分明：
 
 ![设置页：左侧领域清单，右侧只用名字 + 勾选框](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-settings-zoom.png)
 

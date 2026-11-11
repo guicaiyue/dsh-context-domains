@@ -58,51 +58,221 @@ window.__ModuleLoader__.load({
 .cdx-fallback{display:flex;align-items:center;gap:3px;max-width:42vw;overflow-x:auto;scrollbar-width:none}
 .cdx-fallback::-webkit-scrollbar{height:0}
 
-.cdx-set{display:flex;gap:16px;min-height:380px;color:var(--dsw-alias-label-primary);container-type:inline-size}
-.cdx-set-list{width:215px;flex:0 0 215px;display:flex;flex-direction:column;gap:3px}
-.cdx-set-list-hd{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:11.5px;
+/* ---------- 设置面板：左列领域清单 / 右列编辑器（视觉稿来自 OpenDesign cdx-settings-v2） ---------- */
+.cdx-set,.cdx-set *,.cdx-scrim,.cdx-scrim *{box-sizing:border-box}
+.cdx-set{display:flex;height:clamp(440px,68vh,690px);min-height:400px;overflow:hidden;
+  border:1px solid var(--dsw-alias-border-l1);border-radius:14px;background:var(--dsw-alias-bg-layer-1);
+  color:var(--dsw-alias-label-primary);container-type:inline-size}
+/* 左列 200px */
+.cdx-side{display:flex;flex:0 0 200px;flex-direction:column;width:200px;
+  background:color-mix(in srgb, var(--dsw-alias-bg-base) 55%, var(--dsw-alias-bg-layer-1));
+  border-right:1px solid var(--dsw-alias-border-l1)}
+.cdx-side-hd{display:flex;flex:0 0 auto;align-items:center;justify-content:space-between;gap:8px;
+  height:48px;padding:0 12px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.cdx-side-count{font-size:11px;letter-spacing:.04em;white-space:nowrap;
   color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
-.cdx-btn{font:inherit;font-size:12px;padding:5px 10px;border-radius:7px;cursor:pointer;white-space:nowrap;
-  border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-primary)}
-.cdx-btn:hover{background:var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12))}
-.cdx-btn-primary{background:var(--dsw-alias-button-primary-fill, #111);color:var(--dsw-alias-label-primary-foreground, #fff);
-  border-color:transparent;font-weight:600}
-.cdx-dcard{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:9px;cursor:pointer;
-  border:1px solid transparent;background:transparent;color:inherit;text-align:left;font:inherit}
-.cdx-dcard:hover{background:var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12))}
-.cdx-dcard[aria-selected="true"]{background:var(--dsw-alias-bg-layer-2);border-color:var(--dsw-alias-border-l2)}
-.cdx-dcard-ico{width:24px;height:24px;flex:0 0 24px;border-radius:7px;display:grid;place-items:center;font-size:12px;
-  background:var(--dsw-alias-bg-layer-2)}
-.cdx-dcard-n{font-size:12.5px;display:block}
-.cdx-dcard-m{font-size:10.5px;display:block;color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
-.cdx-badge{margin-left:auto;flex:0 0 auto;white-space:nowrap;font-size:9.5px;padding:0 5px;border-radius:4px;
-  color:var(--dsw-alias-state-success-primary);background:color-mix(in srgb, var(--dsw-alias-state-success-primary) 14%, transparent)}
-.cdx-set-edit{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:12px}
-.cdx-field{display:flex;gap:12px;align-items:flex-start}
-.cdx-field>label{width:74px;flex:0 0 74px;font-size:11.5px;padding-top:6px;
+.cdx-side-actions{display:flex;align-items:center;gap:4px}
+.cdx-side-list{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;gap:2px;
+  margin:0;padding:8px 8px 0;overflow-y:auto;list-style:none;
+  scrollbar-width:thin;scrollbar-color:var(--dsw-alias-scrollbar-bg-l2, rgba(127,127,127,.35)) transparent}
+.cdx-side-list::-webkit-scrollbar{width:6px}
+.cdx-side-list::-webkit-scrollbar-thumb{background:var(--dsw-alias-scrollbar-bg-l2, rgba(127,127,127,.35));border-radius:3px}
+.cdx-side-list::-webkit-scrollbar-thumb:hover{background:var(--dsw-alias-scrollbar-hover-l2, rgba(127,127,127,.55))}
+.cdx-domain{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;
+  gap:8px;width:100%;min-height:56px;padding:8px 8px 8px 12px;border:0;border-radius:8px;
+  background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;
+  transition:background-color .14s ease}
+.cdx-domain:hover{background:var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12))}
+.cdx-domain[aria-selected="true"]{background:var(--dsw-alias-interactive-bg-active, rgba(127,127,127,.18))}
+.cdx-domain-mark{position:absolute;top:10px;bottom:10px;left:0;width:2px;border-radius:2px;background:transparent}
+.cdx-domain[aria-selected="true"] .cdx-domain-mark{background:var(--dsw-alias-brand-primary, #5686fe)}
+.cdx-domain-body{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cdx-domain-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:13px;font-weight:500;color:var(--dsw-alias-label-secondary)}
+.cdx-domain[aria-selected="true"] .cdx-domain-name{color:var(--dsw-alias-label-primary)}
+.cdx-domain-meta{display:flex;align-items:center;gap:4px;font-size:11px;
   color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
-.cdx-input{flex:1 1 auto;min-width:0;font:inherit;font-size:12.5px;padding:6px 9px;border-radius:8px;
-  border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary)}
-.cdx-mem-hd{display:flex;align-items:center;gap:8px}
-.cdx-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px}
-.cdx-mem{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:7px;font-size:12px;cursor:pointer;
-  color:var(--dsw-alias-label-secondary)}
-.cdx-mem:hover{background:var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12))}
-.cdx-mem input{appearance:none;width:13px;height:13px;margin:0;border-radius:4px;flex:0 0 13px;position:relative;
-  border:1.5px solid var(--dsw-alias-label-tertiary, #888);background:transparent}
-.cdx-mem input:checked{background:var(--dsw-alias-brand-primary, #5686fe);border-color:var(--dsw-alias-brand-primary, #5686fe)}
-.cdx-mem input:checked::after{content:"";position:absolute;left:3px;top:0;width:4px;height:7px;
-  border:2px solid #fff;border-top:0;border-left:0;transform:rotate(42deg)}
-.cdx-mem .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  font-family:var(--dsh-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace);font-size:11.5px}
-.cdx-empty{padding:20px 8px;font-size:12px;color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
+.cdx-domain-badge{flex:0 0 auto;height:16px;padding:0 4px;font-size:11px;line-height:14px;border-radius:4px;
+  color:var(--dsw-alias-state-success-primary);
+  border:1px solid color-mix(in srgb, var(--dsw-alias-state-success-primary) 42%, transparent)}
+.cdx-domain-ratio{flex:0 0 auto;white-space:nowrap;font-variant-numeric:tabular-nums;font-size:11px;
+  font-family:var(--dsh-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
+.cdx-side-foot{flex:0 0 auto;margin:0;padding:12px;font-size:11px;line-height:1.5;
+  color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));
+  border-top:1px solid var(--dsw-alias-border-l1)}
+/* 右列 */
+.cdx-main{display:flex;flex:1 1 auto;flex-direction:column;gap:16px;min-width:0;padding:16px}
+.cdx-field{display:flex;flex-direction:column;gap:8px}
+.cdx-field-lbl{font-size:11px;letter-spacing:.04em;
+  color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
+.cdx-input{width:100%;height:32px;padding:0 8px;font:inherit;font-size:12px;outline:none;
+  color:var(--dsw-alias-label-primary);
+  background:var(--dsw-alias-bg-layer-2);
+  border:1px solid var(--dsw-alias-border-l2);border-radius:6px;
+  transition:border-color .14s ease, box-shadow .14s ease}
+.cdx-input::placeholder{color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
+.cdx-input:focus{border-color:var(--dsw-alias-brand-primary, #5686fe);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary, #5686fe) 18%, transparent)}
+.cdx-input-area{height:56px;padding:8px;line-height:1.5;resize:none}
+/* 默认启用开关行 */
+.cdx-switchrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;
+  border-top:1px solid var(--dsw-alias-border-l1);border-bottom:1px solid var(--dsw-alias-border-l1)}
+.cdx-switchrow-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cdx-switchrow-lbl{font-size:12px;color:var(--dsw-alias-label-primary)}
+.cdx-switchrow-hint{font-size:11px;color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
+.cdx-switch{position:relative;flex:0 0 auto;width:32px;height:18px;padding:0;cursor:pointer;
+  background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2);border-radius:999px;
+  transition:background-color .14s ease, border-color .14s ease}
+.cdx-switch::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;
+  background:var(--dsw-alias-switch-thumb, var(--dsw-alias-label-tertiary, #888));
+  transition:transform .14s ease, background-color .14s ease}
+.cdx-switch[aria-checked="true"]{border-color:var(--dsw-alias-brand-primary);
+  background:var(--dsw-alias-brand-primary)}
+.cdx-switch[aria-checked="true"]::after{background:var(--dsw-alias-label-primary-foreground);transform:translateX(14px)}
+.cdx-switch:focus-visible{outline:none;
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary, #5686fe) 20%, transparent)}
+.cdx-switch:disabled{cursor:default;opacity:.6}
+/* 成员区 */
+.cdx-members{display:flex;flex:1 1 auto;flex-direction:column;gap:4px;min-height:0}
+.cdx-search{display:flex;align-items:center;height:32px;border-radius:8px;
+  background:var(--dsw-alias-bg-layer-2);
+  border:1px solid var(--dsw-alias-border-l2);
+  transition:border-color .14s ease, box-shadow .14s ease}
+.cdx-search:focus-within{border-color:var(--dsw-alias-brand-primary, #5686fe);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary, #5686fe) 18%, transparent)}
+.cdx-search-input{flex:1 1 auto;min-width:0;height:100%;padding:0 8px;font:inherit;font-size:12px;
+  color:var(--dsw-alias-label-primary);background:transparent;border:0;outline:none;appearance:none}
+.cdx-search-input::placeholder{color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
+.cdx-search-input::-webkit-search-cancel-button{display:none}
+.cdx-search-meta{flex:0 0 auto;padding:0 8px;font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums;
+  color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));
+  border-left:1px solid var(--dsw-alias-border-l1)}
+.cdx-filters{display:flex;align-items:center;justify-content:space-between;gap:8px;row-gap:6px;
+  flex-wrap:wrap;padding:4px 0}
+.cdx-filters-right{display:flex;align-items:center;gap:4px;min-width:0}
+.cdx-filters-lbl{font-size:11px;white-space:nowrap;
+  color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
+.cdx-seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;
+  background:var(--dsw-alias-bg-layer-2);
+  border:1px solid var(--dsw-alias-border-l1)}
+.cdx-seg-btn{height:22px;padding:0 6px;font:inherit;font-size:11px;white-space:nowrap;cursor:pointer;
+  color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary));
+  background:transparent;border:0;border-radius:6px;transition:background-color .14s ease, color .14s ease}
+.cdx-seg-btn:hover{background:var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12));
+  color:var(--dsw-alias-label-primary)}
+.cdx-seg-btn[aria-pressed="true"]{
+  background:color-mix(in srgb, var(--dsw-alias-brand-primary) 22%, transparent);
+  color:var(--dsw-alias-label-primary);font-weight:600}
+.cdx-seg-btn:focus-visible{outline:none;
+  box-shadow:0 0 0 2px color-mix(in srgb, var(--dsw-alias-brand-primary, #5686fe) 22%, transparent)}
+.cdx-list{display:grid;grid-template-columns:1fr 1fr;column-gap:8px;align-content:start;
+  flex:1 1 auto;min-height:160px;max-height:260px;padding:4px 4px 4px 0;
+  overflow-y:auto;overscroll-behavior:contain;
+  border-top:1px solid var(--dsw-alias-border-l1);
+  scrollbar-width:thin;scrollbar-color:var(--dsw-alias-scrollbar-bg-l2, rgba(127,127,127,.35)) transparent}
+.cdx-list-one{grid-template-columns:1fr}
+.cdx-list::-webkit-scrollbar{width:6px}
+.cdx-list::-webkit-scrollbar-thumb{background:var(--dsw-alias-scrollbar-bg-l2, rgba(127,127,127,.35));border-radius:3px}
+.cdx-list::-webkit-scrollbar-thumb:hover{background:var(--dsw-alias-scrollbar-hover-l2, rgba(127,127,127,.55))}
+.cdx-member{position:relative;display:flex;align-items:center;gap:8px;height:26px;min-width:0;
+  padding:0 4px;border-radius:6px;cursor:pointer;transition:background-color .14s ease}
+.cdx-member:hover{background:var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12))}
+.cdx-member input{position:absolute;width:13px;height:13px;margin:0;opacity:0;pointer-events:none}
+.cdx-check{position:relative;flex:0 0 auto;width:13px;height:13px;border-radius:4px;
+  background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-border-l2);
+  transition:background-color .14s ease, border-color .14s ease}
+.cdx-check::after{content:"";position:absolute;top:1px;left:3.5px;width:4px;height:7px;
+  border-right:1.5px solid var(--dsw-alias-label-primary-foreground, #fff);
+  border-bottom:1.5px solid var(--dsw-alias-label-primary-foreground, #fff);
+  opacity:0;transform:rotate(40deg) scale(.5);transition:opacity .14s ease, transform .14s ease}
+.cdx-member input:checked + .cdx-check{
+  background:var(--dsw-alias-brand-primary, #5686fe);border-color:var(--dsw-alias-brand-primary, #5686fe)}
+.cdx-member input:checked + .cdx-check::after{opacity:1;transform:rotate(40deg) scale(1)}
+.cdx-member input:focus-visible + .cdx-check{border-color:var(--dsw-alias-brand-primary, #5686fe);
+  box-shadow:0 0 0 2px color-mix(in srgb, var(--dsw-alias-brand-primary, #5686fe) 22%, transparent)}
+.cdx-member-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1;
+  font-family:var(--dsh-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace);font-size:11px;
+  color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
+.cdx-member input:checked ~ .cdx-member-name{color:var(--dsw-alias-label-secondary)}
+/* 空态 */
+.cdx-empty{grid-column:1 / -1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;min-height:200px;padding:16px;text-align:center}
+.cdx-empty-text{margin:0;font-size:11px;
+  color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
 .cdx-hint{font-size:11px;color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
-.cdx-scroll{max-height:250px;overflow:auto;padding-right:4px}
-@container (max-width: 720px){
-  .cdx-grid{grid-template-columns:1fr}
-  .cdx-field{flex-wrap:wrap;gap:4px}
-  .cdx-field>label{width:100%;flex:1 1 100%;padding-top:0}
-  .cdx-set-list{width:180px;flex:0 0 180px}
+.cdx-empty-btn{height:24px;padding:0 8px;font:inherit;font-size:11px;cursor:pointer;border-radius:6px;
+  color:var(--dsw-alias-label-secondary);background:transparent;border:1px solid var(--dsw-alias-border-l2)}
+.cdx-empty-btn:hover{background:var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12));
+  color:var(--dsw-alias-label-primary)}
+/* 底部操作 */
+.cdx-main-foot{display:flex;flex:0 0 auto;align-items:center;gap:8px;margin-top:auto;padding-top:12px;
+  border-top:1px solid var(--dsw-alias-border-l1)}
+.cdx-btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;height:26px;padding:0 8px;
+  font:inherit;font-size:11px;white-space:nowrap;cursor:pointer;border-radius:6px;
+  color:var(--dsw-alias-label-secondary);
+  background:var(--dsw-alias-bg-layer-2);
+  border:1px solid var(--dsw-alias-border-l2);
+  transition:background-color .14s ease, border-color .14s ease, color .14s ease, transform .14s ease}
+.cdx-btn:hover{background:var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12));
+  color:var(--dsw-alias-label-primary)}
+.cdx-btn:active{transform:translateY(1px)}
+.cdx-btn:disabled{opacity:.5;cursor:default}
+.cdx-btn-primary{height:36px;font-size:13px;font-weight:600;border-color:transparent;
+  color:var(--dsw-alias-label-primary-foreground, #fff);background:var(--dsw-alias-brand-primary, #5686fe)}
+.cdx-btn-primary:hover{filter:brightness(1.08);color:var(--dsw-alias-label-primary-foreground, #fff);
+  background:var(--dsw-alias-brand-primary, #5686fe)}
+.cdx-btn-danger{height:30px;padding:0 12px;background:transparent;border-color:var(--dsw-alias-border-l2);
+  color:var(--dsw-alias-label-error)}
+.cdx-btn-danger:hover{color:var(--dsw-alias-label-error);border-color:var(--dsw-alias-label-error);
+  background:color-mix(in srgb, var(--dsw-alias-label-error) 12%, transparent)}
+.cdx-iconbtn{display:grid;place-items:center;width:24px;height:24px;padding:0;font:inherit;font-size:12px;
+  line-height:1;cursor:pointer;border-radius:6px;background:transparent;border:1px solid transparent;
+  color:var(--dsw-alias-label-secondary);transition:background-color .14s ease, border-color .14s ease, color .14s ease}
+.cdx-iconbtn:hover{background:var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12));
+  border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-brand-primary, #5686fe)}
+.cdx-iconbtn-accent{color:var(--dsw-alias-brand-primary, #5686fe)}
+/* AI 归类弹窗 */
+.cdx-scrim{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:24px;
+  background:var(--dsw-alias-bg-mask-1, rgba(0,0,0,.4));
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.cdx-modal{display:flex;flex-direction:column;gap:12px;width:520px;max-width:100%;max-height:86vh;
+  padding:16px;box-sizing:border-box;border-radius:14px;border:1px solid var(--dsw-alias-border-l2);
+  background:var(--dsw-alias-bg-layer-1);
+  color:var(--dsw-alias-label-primary);box-shadow:0 28px 72px rgba(0,0,0,.42)}
+.cdx-modal-hd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cdx-modal-title{margin:0;font-size:15px;font-weight:600;color:var(--dsw-alias-label-primary)}
+.cdx-modal-desc{margin:0;font-size:11px;line-height:1.6;
+  color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
+.cdx-prompt{display:flex;flex-direction:column;overflow:hidden;cursor:copy;border-radius:8px;
+  background:color-mix(in srgb, var(--dsw-alias-bg-base) 55%, var(--dsw-alias-bg-layer-1));
+  border:1px solid var(--dsw-alias-border-l2);transition:border-color .14s ease}
+.cdx-prompt:hover{border-color:var(--dsw-alias-brand-primary, #5686fe)}
+.cdx-prompt:focus-visible{outline:none;border-color:var(--dsw-alias-brand-primary, #5686fe);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary, #5686fe) 18%, transparent)}
+.cdx-prompt-text{max-height:248px;margin:0;padding:12px;overflow:auto;white-space:pre-wrap;
+  overflow-wrap:break-word;font-family:var(--dsh-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size:11px;line-height:1.7;color:var(--dsw-alias-label-secondary);scrollbar-width:thin}
+.cdx-prompt-text::-webkit-scrollbar{width:6px}
+.cdx-prompt-text::-webkit-scrollbar-thumb{background:var(--dsw-alias-scrollbar-bg-l2, rgba(127,127,127,.35));border-radius:3px}
+.cdx-prompt-hint{align-self:flex-end;height:20px;margin:6px 6px 0;padding:0 4px;font-size:11px;line-height:18px;
+  white-space:nowrap;pointer-events:none;opacity:0;border-radius:6px;transition:opacity .14s ease;
+  color:var(--dsw-alias-label-secondary);
+  background:var(--dsw-alias-bg-layer-2);
+  border:1px solid var(--dsw-alias-border-l2)}
+.cdx-prompt:hover .cdx-prompt-hint,
+.cdx-prompt:focus-visible .cdx-prompt-hint,
+.cdx-prompt[data-copied="true"] .cdx-prompt-hint{opacity:1}
+.cdx-prompt[data-copied="true"] .cdx-prompt-hint{color:var(--dsw-alias-state-success-primary);
+  border-color:color-mix(in srgb, var(--dsw-alias-state-success-primary) 45%, transparent)}
+.cdx-modal-foot{display:flex}
+.cdx-modal-foot .cdx-btn{width:100%}
+/* 窄面板：左列收窄、成员列表单列 */
+@container (max-width: 520px){
+  .cdx-side{flex-basis:172px;width:172px}
+  .cdx-list{grid-template-columns:1fr}
+  .cdx-main{gap:12px;padding:12px}
+  .cdx-filters-lbl{display:none}
 }
 @media (prefers-reduced-motion: reduce){.cdx-chip{transition:none}}
 `
@@ -395,13 +565,36 @@ window.__ModuleLoader__.load({
     }
 
     /* -------------------------------------------------------------- 设置 */
+    // 页签与显示范围都记住：重新打开设置页不至于又回到「全部」再翻一遍
+    let lastMemberTab = 'all'
+    let lastMemberFilter = 'all'
+
+    /** 给用户抄的 prompt：自动化建域走的是同一套 HTTP 契约，这里只负责把话写顺。 */
+    const AI_PROMPT = '读 GET /context-domains/api/catalog，把里面的 skill 和 tool 按用途归成 6–8 个领域：\n'
+      + '名字 ≤6 字，一个领域可以同时装 skill 与 tool，成员不要重复。\n'
+      + '先给我一份归类清单，我确认后你用 POST /context-domains/api/domains\n'
+      + '（op=create, name, description, members:[{type,name}]）逐条建好。'
+
     function DomainsSettings() {
       const [domains, setDomains] = React.useState([])
       const [catalog, setCatalog] = React.useState({ skills: [], tools: [], suggestions: [], unassigned: { skills: [], tools: [] } })
       const [selectedId, setSelectedId] = React.useState(null)
       const [query, setQuery] = React.useState('')
+      const [tab, setTab] = React.useState(lastMemberTab)
+      const [filter, setFilter] = React.useState(lastMemberFilter)
+      const [aiOpen, setAiOpen] = React.useState(false)
+      const [copied, setCopied] = React.useState(false)
       const [error, setError] = React.useState(null)
       const [busy, setBusy] = React.useState(false)
+
+      const pickTab = (next) => {
+        lastMemberTab = next
+        setTab(next)
+      }
+      const pickFilter = (next) => {
+        lastMemberFilter = next
+        setFilter(next)
+      }
 
       const load = React.useCallback(async () => {
         try {
@@ -423,6 +616,19 @@ window.__ModuleLoader__.load({
       }, [domains, selectedId])
 
       const selected = domains.find((domain) => domain.id === selectedId) ?? null
+
+      React.useEffect(() => {
+        if (!aiOpen) return undefined
+        const onKey = (event) => {
+          if (event.key !== 'Escape') return
+          // 只关这一层：宿主设置弹窗也监听 Esc，别连带把设置页关掉
+          event.stopPropagation()
+          event.stopImmediatePropagation?.()
+          setAiOpen(false)
+        }
+        document.addEventListener('keydown', onKey, true)
+        return () => document.removeEventListener('keydown', onKey, true)
+      }, [aiOpen])
       const run = async (fn) => {
         setBusy(true)
         try {
@@ -433,8 +639,9 @@ window.__ModuleLoader__.load({
           setBusy(false)
         }
       }
+      // 新建即默认启用：用户建领域的意图就是「要用它」，默认值别再让人多勾一次
       const create = (draft) => run(async () => {
-        const created = await call('/domains', { op: 'create', ...draft })
+        const created = await call('/domains', { op: 'create', defaultOn: true, ...draft })
         await load()
         setSelectedId(created.id)
       })
@@ -456,8 +663,6 @@ window.__ModuleLoader__.load({
         skill: catalog.skills.filter((item) => match(item.name)),
         tool: catalog.tools.filter((item) => match(item.name)),
       }
-      const memberNames = (type) => (selected?.members ?? []).filter((m) => m.type === type).map((m) => m.name)
-
       const setMember = (type, name, on) => {
         if (!selected) return
         const next = [...(selected.members ?? [])]
@@ -467,31 +672,181 @@ window.__ModuleLoader__.load({
         void update({ members: next })
       }
 
-      const section = (type, label) => {
-        const names = pool[type].map((item) => item.name)
-        if (names.length === 0) return null
-        return h(
-          React.Fragment,
-          { key: type },
-          h('div', { className: 'cdx-grp', style: { borderTop: 'none', paddingLeft: 0 } },
-            label, h('span', { className: 'n' }, String(memberNames(type).length))),
-          h(
-            'div',
-            { className: 'cdx-grid' },
-            names.map((name) =>
-              h(
-                'label',
-                { className: 'cdx-mem', key: name },
-                h('input', {
-                  type: 'checkbox',
-                  checked: memberSet.has(`${type}:${name}`),
-                  disabled: busy,
-                  onChange: (event) => setMember(type, name, event.target.checked),
-                }),
-                h('span', { className: 'nm', title: name }, name),
-              ),
+      const copyPrompt = async () => {
+        try {
+          await navigator.clipboard.writeText(AI_PROMPT)
+        } catch {
+          const area = document.createElement('textarea')
+          area.value = AI_PROMPT
+          area.style.position = 'fixed'
+          area.style.opacity = '0'
+          document.body.appendChild(area)
+          area.select()
+          document.execCommand?.('copy')
+          area.remove()
+        }
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1600)
+      }
+
+      /** 分段控件：类型页签与显示范围共用，选中态用 aria-pressed 表达。 */
+      const segmented = (label, items, active, onPick) =>
+        h(
+          'div',
+          { className: 'cdx-seg', role: 'group', 'aria-label': label },
+          items.map(([id, text]) =>
+            h(
+              'button',
+              {
+                key: id,
+                className: 'cdx-seg-btn',
+                type: 'button',
+                'aria-pressed': active === id ? 'true' : 'false',
+                onClick: () => onPick(id),
+              },
+              text,
             ),
           ),
+        )
+
+      // 成员行：技能在前、工具在后。类型由页签表达，列表本身保持无装饰（视觉稿的做法），
+      // 顺序本身就是「混装」的暗示。
+      const rows = (tab === 'all' ? ['skill', 'tool'] : [tab]).flatMap((type) =>
+        pool[type]
+          .filter((item) => {
+            if (filter === 'all') return true
+            const on = memberSet.has(`${type}:${item.name}`)
+            return filter === 'picked' ? on : !on
+          })
+          .map((item) => ({ type, name: item.name })),
+      )
+
+      const emptyText = () => {
+        if (keywords !== '') return `没有匹配「${query.trim()}」的成员`
+        if (filter === 'picked') return '还没有已选成员'
+        if (filter === 'unpicked') return '本领域成员已全部选中'
+        if (tab === 'skill') return '本领域没有技能成员'
+        if (tab === 'tool') return '本领域没有工具成员'
+        return '还没有可用的成员'
+      }
+
+      const clearFilters = () => {
+        setQuery('')
+        pickTab('all')
+        pickFilter('all')
+      }
+
+      const memberList = rows.length === 0
+        ? h(
+            'div',
+            { className: 'cdx-empty' },
+            h('p', { className: 'cdx-empty-text' }, emptyText()),
+            h('button', { className: 'cdx-empty-btn', type: 'button', onClick: clearFilters }, '清除筛选'),
+          )
+        : rows.map((row) =>
+            h(
+              'label',
+              { className: 'cdx-member', key: `${row.type}:${row.name}`, title: row.name },
+              h('input', {
+                type: 'checkbox',
+                checked: memberSet.has(`${row.type}:${row.name}`),
+                disabled: busy,
+                onChange: (event) => setMember(row.type, row.name, event.target.checked),
+              }),
+              h('span', { className: 'cdx-check', 'aria-hidden': 'true' }),
+              h('span', { className: 'cdx-member-name' }, row.name),
+            ),
+          )
+
+      // AI 弹窗：portal 到 body 且 z-index 高过宿主设置弹窗（1000/1100 的 fixed 层），
+      // 否则会被压在那个对话框下面 —— 表现就是「点了 AI 什么都不出现」。
+      const aiDialog = aiOpen
+        ? portal(
+            h(
+              'div',
+              {
+                className: 'cdx-scrim',
+                role: 'presentation',
+                onMouseDown: (event) => {
+                  event.stopPropagation()
+                  if (event.target === event.currentTarget) setAiOpen(false)
+                },
+                onClick: (event) => event.stopPropagation(),
+              },
+              h(
+                'div',
+                {
+                  className: 'cdx-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': '让 AI 帮忙归类',
+                  onMouseDown: (event) => event.stopPropagation(),
+                },
+                h(
+                  'div',
+                  { className: 'cdx-modal-hd' },
+                  h('h2', { className: 'cdx-modal-title' }, '让 AI 帮忙归类'),
+                  h('button', {
+                    className: 'cdx-iconbtn', type: 'button', 'aria-label': '关闭弹窗',
+                    onClick: () => setAiOpen(false),
+                  }, '✕'),
+                ),
+                h('p', { className: 'cdx-modal-desc' },
+                  '把下面这段发给会话里的 AI：它会自己读目录、按用途归类，先给你清单，确认后再建域。'),
+                h(
+                  'div',
+                  {
+                    className: 'cdx-prompt',
+                    role: 'button',
+                    tabIndex: 0,
+                    title: '点一下复制',
+                    'data-copied': copied ? 'true' : 'false',
+                    'aria-label': 'prompt 文本，点击复制',
+                    onClick: () => void copyPrompt(),
+                    onKeyDown: (event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        void copyPrompt()
+                      }
+                    },
+                  },
+                  h('span', { className: 'cdx-prompt-hint', 'aria-live': 'polite' }, copied ? '已复制' : '点击复制'),
+                  h('pre', { className: 'cdx-prompt-text' }, AI_PROMPT),
+                ),
+                h(
+                  'div',
+                  { className: 'cdx-modal-foot' },
+                  h('button', {
+                    className: 'cdx-btn cdx-btn-primary', type: 'button',
+                    onClick: () => void copyPrompt(),
+                  }, copied ? '已复制' : '复制 prompt'),
+                ),
+              ),
+            ),
+          )
+        : null
+
+      const domainRow = (domain) => {
+        const c = counts(domain)
+        return h(
+          'button',
+          {
+            key: domain.id,
+            className: 'cdx-domain',
+            type: 'button',
+            'aria-selected': selectedId === domain.id ? 'true' : 'false',
+            onClick: () => setSelectedId(domain.id),
+          },
+          h('span', { className: 'cdx-domain-mark', 'aria-hidden': 'true' }),
+          h(
+            'span',
+            { className: 'cdx-domain-body' },
+            h('span', { className: 'cdx-domain-name' }, domain.name),
+            h(
+              'span',
+              { className: 'cdx-domain-meta' },
+              `${c.total} 项`,
+              domain.defaultOn ? h('span', { className: 'cdx-domain-badge' }, '默认') : null,
+            ),
+          ),
+          h('span', { className: 'cdx-domain-ratio' }, `${c.skills}/${c.tools}`),
         )
       }
 
@@ -499,94 +854,110 @@ window.__ModuleLoader__.load({
         'div',
         { className: 'cdx-set' },
         h(
-          'div',
-          { className: 'cdx-set-list' },
+          'aside',
+          { className: 'cdx-side' },
+          h(
+            'header',
+            { className: 'cdx-side-hd' },
+            h('span', { className: 'cdx-side-count' }, `${domains.length} 个领域`),
+            h(
+              'div',
+              { className: 'cdx-side-actions' },
+              h('button', {
+                className: 'cdx-btn', type: 'button', disabled: busy,
+                onClick: () => void create({ name: '新领域', members: [] }),
+              }, '＋ 新建'),
+              h('button', {
+                className: 'cdx-iconbtn cdx-iconbtn-accent', type: 'button',
+                title: '让 AI 帮忙归类成员（点开有可复制的 prompt）',
+                'aria-label': '让 AI 帮忙归类成员',
+                onClick: () => setAiOpen(true),
+              }, '✦'),
+            ),
+          ),
           h(
             'div',
-            { className: 'cdx-set-list-hd' },
-            h('span', null, `${domains.length} 个领域`),
-            h('span', { style: { flex: '1 1 auto' } }),
-            h('button', { className: 'cdx-btn', type: 'button', disabled: busy, onClick: () => void create({ name: '新领域', members: [] }) }, '＋ 新建'),
+            { className: 'cdx-side-list', role: 'list' },
+            domains.length === 0
+              ? h(
+                  'div',
+                  { className: 'cdx-empty' },
+                  h('p', { className: 'cdx-empty-text' }, '还没有领域，可以从建议开始'),
+                  (catalog.suggestions ?? []).map((s) =>
+                    h('button', {
+                      key: s.name, className: 'cdx-empty-btn', type: 'button', disabled: busy,
+                      onClick: () => void create({ name: s.name, members: s.members }),
+                    }, `${s.name} · ${s.members.length} 项`),
+                  ),
+                )
+              : domains.map(domainRow),
           ),
-          domains.map((domain) => {
-            const c = counts(domain)
-            return h(
-              'button',
-              {
-                key: domain.id,
-                className: 'cdx-dcard',
-                type: 'button',
-                'aria-selected': selectedId === domain.id ? 'true' : 'false',
-                onClick: () => setSelectedId(domain.id),
-              },
-              h('span', { className: 'cdx-dcard-ico' }, domain.icon ?? '◈'),
-              h(
-                'span',
-                null,
-                h('span', { className: 'cdx-dcard-n' }, domain.name),
-                h('span', { className: 'cdx-dcard-m' }, `${c.total} 项`),
-              ),
-              domain.defaultOn ? h('span', { className: 'cdx-badge' }, '默认') : null,
-            )
-          }),
-          domains.length === 0
-            ? h('div', { className: 'cdx-empty' }, '还没有领域。可以从下面的建议开始：',
-                h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' } },
-                  (catalog.suggestions ?? []).map((s) => h('button', {
-                    key: s.name, className: 'cdx-btn', type: 'button', disabled: busy,
-                    onClick: () => void create({ name: s.name, members: s.members }),
-                  }, `${s.name} (${s.members.length})`))))
-            : null,
-          h('div', { className: 'cdx-hint', style: { marginTop: '8px' } },
+          h('p', { className: 'cdx-side-foot' },
             `未归入领域：${catalog.unassigned?.skills?.length ?? 0} skill · ${catalog.unassigned?.tools?.length ?? 0} tool`),
         ),
         h(
           'div',
-          { className: 'cdx-set-edit' },
-          error ? h('div', { className: 'cdx-empty', style: { color: 'var(--dsw-alias-state-error-primary)' } }, error) : null,
+          { className: 'cdx-main' },
+          error
+            ? h('div', { className: 'cdx-empty-text', style: { color: 'var(--dsw-alias-label-error)' } }, error)
+            : null,
           selected === null
-            ? h('div', { className: 'cdx-empty' }, '从左侧选一个领域，或新建一个。领域只做归纳：一个领域里可以同时装 skill 和 tool。')
+            ? h('div', { className: 'cdx-empty', style: { minHeight: '0', flex: '1 1 auto' } },
+                h('p', { className: 'cdx-empty-text' }, '从左侧选一个领域，或新建一个。领域只做归纳：一个领域里可以同时装 skill 和 tool。'))
             : h(
                 React.Fragment,
                 null,
-                h('div', { className: 'cdx-field' }, h('label', null, '名称'),
+                h('label', { className: 'cdx-field' },
+                  h('span', { className: 'cdx-field-lbl' }, '名称'),
                   h('input', {
-                    className: 'cdx-input', defaultValue: selected.name, key: `${selected.id}:name`,
+                    className: 'cdx-input', defaultValue: selected.name, key: `${selected.id}:name`, spellCheck: false,
                     onBlur: (event) => {
                       const value = event.target.value.trim()
                       if (value !== '' && value !== selected.name) void update({ name: value })
                     },
                   })),
-                h('div', { className: 'cdx-field' }, h('label', null, '说明'),
-                  h('input', {
-                    className: 'cdx-input', defaultValue: selected.description ?? '', key: `${selected.id}:desc`,
+                h('label', { className: 'cdx-field' },
+                  h('span', { className: 'cdx-field-lbl' }, '说明'),
+                  h('textarea', {
+                    className: 'cdx-input cdx-input-area', rows: 2, spellCheck: false,
+                    defaultValue: selected.description ?? '', key: `${selected.id}:desc`,
                     placeholder: '这个领域装了什么，什么时候要开',
                     onBlur: (event) => void update({ description: event.target.value }),
                   })),
-                h('div', { className: 'cdx-field' }, h('label', null, '新会话默认'),
-                  h('label', { className: 'cdx-mem', style: { paddingLeft: 0 } },
+                h('div', { className: 'cdx-switchrow' },
+                  h('span', { className: 'cdx-switchrow-text' },
+                    h('span', { className: 'cdx-switchrow-lbl' }, '默认启用'),
+                    h('span', { className: 'cdx-switchrow-hint' }, '勾上 = 新会话自动点亮，会话里仍可随时关')),
+                  h('button', {
+                    className: 'cdx-switch', type: 'button', role: 'switch',
+                    'aria-checked': selected.defaultOn ? 'true' : 'false', 'aria-label': '默认启用',
+                    disabled: busy,
+                    onClick: () => void update({ defaultOn: !selected.defaultOn }),
+                  })),
+                h('div', { className: 'cdx-members' },
+                  h('div', { className: 'cdx-search' },
                     h('input', {
-                      type: 'checkbox', checked: selected.defaultOn, disabled: busy,
-                      onChange: (event) => void update({ defaultOn: event.target.checked }),
+                      className: 'cdx-search-input', type: 'search', placeholder: '搜索成员名称',
+                      'aria-label': '搜索成员', value: query,
+                      onChange: (event) => setQuery(event.target.value),
                     }),
-                    h('span', { className: 'nm' }, '新会话自动点亮，仍可在会话里改'))),
-                h('div', { className: 'cdx-mem-hd' },
-                  h('input', {
-                    className: 'cdx-input', placeholder: '搜索成员…', value: query,
-                    onChange: (event) => setQuery(event.target.value),
-                  }),
-                  h('span', { className: 'cdx-hint' }, `已选 ${memberSet.size} 项`)),
-                h('div', { className: 'cdx-scroll' }, section('skill', '技能'), section('tool', '工具')),
-                h('div', { className: 'cdx-field', style: { marginTop: '6px' } }, h('label', null, '为什么混装'),
-                  h('div', { style: { flex: 1, fontSize: '12px', color: 'var(--dsw-alias-label-tertiary)' } },
-                    '有的产品是「一个 skill 带一个专用 tool」，拆成两个领域反而要记两次。',
-                    h('br'),
-                    h('span', { className: 'cdx-hint' }, '对用户是一个开关；加载时才按类型分别处理（skill 进目录、tool 进工具表）。'))),
-                h('div', { style: { display: 'flex', gap: '8px', marginTop: '8px' } },
-                  h('button', { className: 'cdx-btn', type: 'button', disabled: busy, onClick: () => void remove() }, '删除领域'),
-                  h('span', { className: 'cdx-hint', style: { alignSelf: 'center' } },
-                    '保存即时生效：新会话立刻按新领域组装，已有会话在下一轮生效。'))),
+                    h('span', { className: 'cdx-search-meta' }, `已选 ${memberSet.size} 项`)),
+                  h('div', { className: 'cdx-filters' },
+                    segmented('成员类型', [['all', '全部'], ['skill', '技能'], ['tool', '工具']], tab, pickTab),
+                    h('div', { className: 'cdx-filters-right' },
+                      h('span', { className: 'cdx-filters-lbl' }, '显示'),
+                      segmented('显示范围',
+                        [['all', '全部成员'], ['picked', '已选'], ['unpicked', '未选']], filter, pickFilter))),
+                  h('div', {
+                    className: tab === 'all' ? 'cdx-list' : 'cdx-list cdx-list-one',
+                    role: 'group', 'aria-label': '成员列表',
+                  }, memberList)),
+                h('div', { className: 'cdx-main-foot' },
+                  h('button', { className: 'cdx-btn cdx-btn-danger', type: 'button', disabled: busy, onClick: () => void remove() }, '删除领域'),
+                  h('span', { className: 'cdx-hint' }, '保存即时生效，下一轮生效')),
+              ),
         ),
+        aiDialog,
       )
     }
 
