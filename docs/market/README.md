@@ -88,6 +88,15 @@ re-runs by itself and should clear in about 23h」，即 2026-11-10 10:33Z 前�
 - 截图：根目录 `screenshots.json` 列 5 张（条、会话、成员浮层、设置页、压缩阈值特写），路径相对该文件，图在 `assets/` 里。
   换图只推自己的仓库，不用再回来提 PR，下一次构建自动生效。
 
+## 描述：市场卡片读的是条目，不是 README
+
+卡片上那段介绍来自 `description.en` / `description.zh`（见 `entries.mjs`，只允许
+`url / name / category / description / icon / tarball / file` 这些键），**不读 README 摘要**。
+所以插件多了个能力（例如 0.4.0 的压缩阈值计数器、0.4.1 的弹层限高滚动），
+README 改了还不够：两个语种都要在条目里补一句，再跑一次 `scripts/market-submit.sh`
+把 `data/plugins/guicaiyue__dsh-context-domains.yml` 更新过去 —— 那个脚本幂等，已有条目内容不同就提交、
+内容一致就跳过。描述必须单行（校验会拒多行），也不要写 `: ` 这种未加引号的冒号空格。
+
 ## 会不会自动出现
 
 - 合并后，`awesome-dsh-plugin.com/plugins.json` 与 npm 上的 `dsh-plugin-catalog` 索引

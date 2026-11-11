@@ -34,13 +34,16 @@
 
 ![新会话页顶部的领域条（右端同样是计数器）](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-bar-blank.png?v=3)
 
-**一个领域里同时装技能和工具** —— 悬停展开，名字用顿号连起来（技能 3 项、工具 4 项）：
+**一个领域里同时装技能和工具** —— 悬停展开，名字用顿号连起来（这个领域：技能 4 项、工具 3 项）。
+成员多的领域不会把弹层拉到遮住半个对话区：上限是视口 55%，头（领域名 + 项数）和尾（那条操作提示）
+固定，中间清单自己滚：
 
-![混装领域展开：技能 3 项、工具 4 项](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-members-zoom.png)
+![混装领域展开：技能 4 项、工具 3 项；超出高度上限时清单在面板内滚动](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-members-zoom.png?v=4)
 
-**设置 → 上下文领域** —— 左边领域清单；右边搜索、技能/工具页签、显示开关三行分明：
+**设置 → 上下文领域** —— 左列领域清单（项数、已选/总数、默认标记）；右列是编辑器：
+名称、说明、默认启用、搜索成员，然后「全部 / 技能 / 工具」页签与「全部成员 / 已选 / 未选」筛选：
 
-![设置页：左侧领域清单，右侧只用名字 + 勾选框](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-settings-zoom.png)
+![设置页：左侧领域清单，右侧名称、说明、默认启用、搜索与成员勾选网格](https://raw.githubusercontent.com/guicaiyue/dsh-context-domains/main/assets/shot-settings-zoom.png?v=4)
 
 ---
 
