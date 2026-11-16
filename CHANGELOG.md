@@ -6,6 +6,26 @@
 
 ## 未发布
 
+### 修复：顶部条把会话弹离底部，永远贴不到最底
+
+现象：会话滚到最底后，内容一更新就卡一下、视图被弹上去 34px，再也贴不到最底。
+
+根因是两处配合失误：`useColumnBox` 里 `setInterval(measure, 1000)` 每秒都 `setBox` 一个
+**新对象**，`box` 引用每秒都变；`useOverlayPadding` 的 effect 依赖 `[box]`，于是每秒重跑一次
+「先摘掉 padding-top、再补上」。摘掉的瞬间 `scrollHeight` 抖掉 34px，浏览器把贴底的 `scrollTop`
+夹回 `scrollHeight - clientHeight`；补回 padding 后 `scrollHeight` 涨回来，但 `scrollTop`
+不会跟着下去。
+
+改法（`client.js`）：
+- `useColumnBox` 只在 `left/top/width` 真的变了才换引用（函数式 `setBox`，同值返回旧对象，
+  React 直接 bail out）。
+- `useOverlayPadding` 按「滚动容器元素」幂等应用 padding：记住原始值，重复应用同一个目标值，
+  **不摘不重建**；只有容器换了才迁移，`box` 没了或卸载时才还原。
+
+新增 `test/e2e/scroll.mjs`（`npm run test:e2e:scroll`）：真页面造出溢出、贴底，跨 6 个 1s
+测量周期采样，要求 `scrollTop` 始终等于 `floor`、`padding-top` 始终不变；随后再长一段内容
+并重新贴底。实测修复前 7/7 次采样都回弹 17px，修复后 7/7 次都贴住。
+
 ### 文档：README 里两张过时截图换成当前 UI，市场条目补上压缩阈值
 
 只动文档与图片，插件代码不变（版本仍是 0.4.1）。

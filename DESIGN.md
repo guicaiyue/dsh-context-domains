@@ -889,6 +889,31 @@ loadedDomains → members
 - 实测（无头 Chrome + CDP，同一段 CSS 拼的独立页）：60 个名字在 1000×700 / 1280×1000 / 900×420
   三档视口下弹窗高 385 / 550 / 231px，成员区 `scrollHeight 725` 恒大于可视高，尾注始终在视口内。
 
+### 15.6 顶部条不再把会话弹离底部（v0.4 手感修补）
+
+现象：会话滚到最底后，内容一更新就卡一下、视图被弹上去 34px，再也贴不到最底。
+
+根因：`useColumnBox` 里 `setInterval(measure, 1000)` 每秒都 `setBox` 一个新对象，
+`box` 引用每秒都变；`useOverlayPadding` 的 effect 依赖 `[box]`，于是每秒都重跑：
+先跑 cleanup 把 `padding-top` 还原（摘掉 34px），再重新补上。摘掉的瞬间
+`scrollHeight` 抖掉 34px，浏览器在贴底时把 `scrollTop` 夹回 `scrollHeight - clientHeight`，
+视图被弹上去；补回 padding 后 `scrollHeight` 又涨回来，但 `scrollTop` 不会自动跟着下去。
+
+修法（`client.js`）：
+1. `useColumnBox` 只在 `left/top/width` 真的变了才换引用（`setBox` 用函数式更新，
+   返回同一个对象时 React 会 bail out，不触发重渲染）。
+2. `useOverlayPadding` 按「滚动容器元素」幂等应用 padding：记住原始值，重复应用
+   同一个目标值，不摘不重建；只有容器换了才迁移，`box` 没了或卸载时才还原。
+
+验证：`node test/e2e/scroll.mjs http://127.0.0.1:3080`（`npm run test:e2e:scroll`）。
+脚本在真页面上造出溢出、贴底，再跨 6 个 1s 测量周期采样，要求 `scrollTop` 始终等于
+`floor`、`padding-top` 始终不变；随后再长一段内容并重新贴底。
+
+| | 贴底后回弹 | padding 变化 |
+|---|---|---|
+| 修复前（v0.4.0） | 7/7 次采样都低于 floor，稳定回弹 17px | 34px → 0px → 34px 反复 |
+| 修复后 | 7/7 次都等于 floor | 恒为 34px |
+
 ### 17. 第三方来源验收（做完即撤）
 
 2026-11-09 在容器里临时挂了 `dsh-mcp-client` × 2（memory / fsdemo）、`dsh-skill-office`、`dsh-skill-badge`，

@@ -377,29 +377,64 @@ window.__ModuleLoader__.load({
 
     const BAR_HEIGHT = 34
 
+    /** 滚动容器按几何找：与会话列同左边缘、同宽、可滚动、够高 —— 不依赖 class 名。 */
+    function findScroller(box) {
+      const candidates = [...document.querySelectorAll('div')].filter((el) => {
+        const style = getComputedStyle(el)
+        if (style.overflowY !== 'auto' && style.overflowY !== 'scroll') return false
+        const rect = el.getBoundingClientRect()
+        return Math.abs(rect.left - box.left) < 8 && Math.abs(rect.width - box.width) < 24 && rect.height > 300
+      })
+      return candidates[0] ?? null
+    }
+
     /**
      * 横条是固定定位、盖在正文上方，所以要给会话的滚动容器补一段 padding-top，
      * 否则第一条消息会被压住。只改一个内联样式、卸载时还原，不动 DOM 结构。
-     * 滚动容器按几何找：与会话列同左边缘、同宽、可滚动、够高 —— 不依赖 class 名。
+     *
+     * 关键：padding 一旦加上，就不要在每次 box 变化时「先摘掉再补上」。摘掉的瞬间
+     * scrollHeight 抖掉 BAR_HEIGHT，浏览器会把贴底的 scrollTop 夹回去 —— 表现就是
+     * 内容更新时视图被弹上去、再也贴不到最底。所以这里按「滚动容器元素」记住原始
+     * padding，重复应用同一个值（幂等），只有容器换了才迁移，box 没了或卸载时才还原。
      */
     function useOverlayPadding(box) {
+      const stateRef = React.useRef(null)
+
       React.useEffect(() => {
-        if (!box) return undefined
-        const candidates = [...document.querySelectorAll('div')].filter((el) => {
-          const style = getComputedStyle(el)
-          if (style.overflowY !== 'auto' && style.overflowY !== 'scroll') return false
-          const rect = el.getBoundingClientRect()
-          return Math.abs(rect.left - box.left) < 8 && Math.abs(rect.width - box.width) < 24 && rect.height > 300
-        })
-        const scroller = candidates[0]
-        if (!scroller) return undefined
-        const previous = scroller.style.paddingTop
+        // 几何测不到 / 会话切走：还原并清掉，别把 padding 留在死元素上
+        if (!box) {
+          const state = stateRef.current
+          if (state) {
+            state.el.style.paddingTop = state.original
+            stateRef.current = null
+          }
+          return
+        }
+        const scroller = findScroller(box)
+        if (!scroller) return
+        const state = stateRef.current
+        if (state && state.el === scroller) {
+          // 同一个容器：只补到目标值，不摘不重建
+          const wanted = `${state.base + BAR_HEIGHT}px`
+          if (scroller.style.paddingTop !== wanted) scroller.style.paddingTop = wanted
+          return
+        }
+        // 容器换了：先还原旧的，再给新的补上
+        if (state) state.el.style.paddingTop = state.original
+        const original = scroller.style.paddingTop
         const base = parseFloat(getComputedStyle(scroller).paddingTop) || 0
         scroller.style.paddingTop = `${base + BAR_HEIGHT}px`
-        return () => {
-          scroller.style.paddingTop = previous
-        }
+        stateRef.current = { el: scroller, original, base }
       }, [box])
+
+      // 卸载时还原（上面的 effect 不返回 cleanup，避免每次 box 变化都摘 padding）
+      React.useEffect(() => {
+        return () => {
+          const state = stateRef.current
+          if (state) state.el.style.paddingTop = state.original
+          stateRef.current = null
+        }
+      }, [])
     }
 
     /** 会话列的几何：横条要贴住会话头下沿、和会话列同宽。测不到就返回 null（走内联降级）。 */
@@ -419,7 +454,10 @@ window.__ModuleLoader__.load({
             return
           }
           const top = headerRect && headerRect.height > 10 ? headerRect.bottom : colRect.top
-          setBox({ left: Math.round(colRect.left), top: Math.round(top), width: Math.round(colRect.width) })
+          const next = { left: Math.round(colRect.left), top: Math.round(top), width: Math.round(colRect.width) }
+          // 只在几何真的变了才换引用：之前每秒都 setBox 一个新对象，
+          // 让 useOverlayPadding 每秒「摘掉 padding 再补上」，贴底时被浏览器夹回去。
+          setBox((prev) => (prev && prev.left === next.left && prev.top === next.top && prev.width === next.width ? prev : next))
         }
         measure()
         const timer = setInterval(measure, 1000)

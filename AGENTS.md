@@ -25,7 +25,10 @@ npm run verify     # scripts/syntax-check.mjs（全部 .js/.mjs 过 node --check
 当前基线：**23 项，18 passed / 5 skipped / 0 failed**（那 5 项是 `test/api.test.mjs`，没有 dsh-dev 的 cookie jar 就跳过；
 本机有 jar 时是 23 passed）。`test/compaction.test.js` 把 `compaction-basic` 的
 `resolveTargetPolicy` / `resolveCompactSpec` 抄了一份，测的是「预算 → thresholdTokens」的真实换算。
-端到端脚本（`test/e2e/*.mjs`）要一台跑着的 DSH，不在 CI 里。
+端到端脚本（`test/e2e/*.mjs`）要一台跑着的 DSH，不在 CI 里：
+
+- `test/e2e/mask.mjs`：关领域后 skill 在会话视角里 `modelInvocable:false`。
+- `test/e2e/scroll.mjs`：顶部条不把会话弹离底部（贴底跨多个测量周期不回弹、`padding-top` 不变）。
 
 ## 发版
 
