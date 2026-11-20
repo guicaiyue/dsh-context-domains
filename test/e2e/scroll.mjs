@@ -1,6 +1,9 @@
-// 顶部条不把会话弹离底部：真机验证（宿主侧跑，需要本机 Chrome 与已登录的 dsh-dev cookie）
+// 顶部条不把会话弹离底部：真机验证（宿主侧跑，需要本机 puppeteer-core + Chrome 与已登录的 dsh cookie）
 //
 //   node test/e2e/scroll.mjs http://127.0.0.1:3080
+//   CDX_COOKIE_FILE=... CDX_CHROME=... node test/e2e/scroll.mjs http://127.0.0.1:13080
+//
+// puppeteer-core 不写进 dependencies：它只给 e2e 用，按需 `npm i --no-save puppeteer-core`。
 //
 // 验的是三件事：
 //   1. 条子盖上正文后，会话滚动容器补了 padding-top（第一条消息不被压住）；
