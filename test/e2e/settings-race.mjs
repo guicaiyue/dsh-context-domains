@@ -6,6 +6,11 @@
 // 验的是用户路径，不是纯函数：打开 设置 → 上下文领域，在一个临时领域里同一任务连点
 // 两个复选框。旧实现第一下就把 busy 拉满、复选框 disabled，浏览器把第二下吞掉；
 // 或者两次写各拿一份旧 members，后写的覆盖先写的。两条路都表现为「只勾上一个」。
+//
+// 这一轮把性能预算也写进来：
+//   点下去到打勾 ≤ 16ms（乐观更新，不等网络）
+//   同一批连点 = 1 个 POST + 1 个 GET /domains，目录不在写后重拉
+//   改一次名字 = 1 个 update；关掉再打开设置页，有缓存时 ≤ 50ms 且不再拉目录
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import puppeteer from 'puppeteer-core'
@@ -35,20 +40,56 @@ const cookie = readAuthCookie(COOKIE_FILE)
 const name = `__cdx-e2e-${Date.now()}`
 let id
 
+const api = async (body) => {
+  const response = await fetch(`${BASE}/context-domains/api/domains`, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: { cookie: `${cookie.name}=${cookie.value}`, 'content-type': 'application/json' },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
+  return response.json()
+}
+const readDomain = async () => {
+  const payload = await api()
+  return payload.value.domains.find((domain) => domain.id === id)
+}
+
 try {
   const page = await browser.newPage()
   await browser.setCookie({ ...cookie, domain: new URL(BASE).hostname, path: '/' })
+
+  const requests = []
+  let delayMemberWrite = false
+  let failMemberWrite = false
+  page.on('request', (request) => {
+    const url = request.url()
+    if (!url.includes('/context-domains/api/')) return
+    requests.push({ method: request.method(), path: new URL(url).pathname, body: request.postData() ?? '' })
+  })
+  // 拦一次成员写，让「保存中」真的持续一会儿，才能验证复选框不等保存。
+  await page.setRequestInterception(true)
+  page.on('request', (request) => {
+    const body = request.postData() ?? ''
+    if (failMemberWrite && request.method() === 'POST' && request.url().includes('/context-domains/api/domains') && body.includes('"members"')) {
+      failMemberWrite = false
+      void request.respond({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: false, error: { code: 'boom', message: '成员保存失败' } }),
+      })
+      return
+    }
+    if (delayMemberWrite && request.method() === 'POST' && request.url().includes('/context-domains/api/domains') && body.includes('"members"')) {
+      delayMemberWrite = false
+      setTimeout(() => void request.continue(), 300)
+      return
+    }
+    void request.continue()
+  })
+
   await page.goto(BASE, { waitUntil: 'networkidle2', timeout: 60_000 })
   await wait(3000)
 
-  const created = await page.evaluate(async (domainName) => {
-    const response = await fetch('/context-domains/api/domains', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ op: 'create', name: domainName, members: [] }),
-    })
-    return response.json()
-  }, name)
+  const created = await api({ op: 'create', name, members: [] })
   id = created.value.id
 
   // 账号菜单 → 设置 → 上下文领域。菜单项文案随语言变，两种都认。
@@ -60,61 +101,180 @@ try {
     item?.click()
   })
   await wait(800)
-  await page.evaluate(() => {
+
+  const openMs = await page.evaluate(async () => {
     const tab = [...document.querySelectorAll('button')]
       .find((el) => ['上下文领域', 'Context domains'].includes(el.innerText.trim()))
+    const started = performance.now()
     tab?.click()
+    await new Promise((resolve) => {
+      const check = () => {
+        if (document.querySelectorAll('.cdx-domain').length > 0) resolve()
+        else requestAnimationFrame(check)
+      }
+      check()
+    })
+    return performance.now() - started
   })
-  await wait(800)
+  assert.ok(openMs <= 500, `冷打开设置页太慢：${openMs.toFixed(1)}ms`)
+
   await page.evaluate((domainName) => {
     const row = [...document.querySelectorAll('.cdx-domain')].find((el) => el.innerText.includes(domainName))
     row?.click()
   }, name)
   await wait(300)
 
-  const picked = await page.evaluate(() => {
+  const beforeClick = requests.length
+  delayMemberWrite = true
+  const picked = await page.evaluate(async () => {
     const boxes = [...document.querySelectorAll('.cdx-member input[type="checkbox"]')].slice(0, 2)
     if (boxes.length < 2) throw new Error('成员列表不足两项，无法验证连点')
     const labels = boxes.map((box) => box.closest('.cdx-member')?.innerText.trim() ?? '')
+    const started = performance.now()
     // 同一任务里连点：不给 React 在两次点击之间提交 busy/重渲染的机会。
     boxes[0].click()
+    const firstChecked = boxes[0].checked
+    const firstMs = performance.now() - started
     boxes[1].click()
-    return labels
+    const secondChecked = boxes[1].checked
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    return {
+      labels,
+      firstChecked,
+      secondChecked,
+      stillChecked: boxes[0].checked && boxes[1].checked,
+      disabled: boxes.some((box) => box.disabled),
+      ms: firstMs,
+    }
   })
+  assert.equal(picked.firstChecked, true, '第一下点完当帧没有打勾（乐观更新没生效）')
+  assert.equal(picked.secondChecked, true, '第二下点完当帧没有打勾（第二下被吞了）')
+  assert.equal(picked.stillChecked, true, '两个动画帧后勾选又被服务端旧快照按回去了')
+  assert.equal(picked.disabled, false, '保存成员时复选框被禁用了，下一次点击会被浏览器吞掉')
+  assert.ok(picked.ms <= 16, `点击到打勾超过一帧：${picked.ms.toFixed(1)}ms`)
 
-  const readDomain = async () => {
-    const payload = await page.evaluate(async () => {
-      const response = await fetch('/context-domains/api/domains')
-      return response.json()
-    })
-    return payload.value.domains.find((domain) => domain.id === id)
-  }
+  // 保存中仍可继续操作：再等一拍，复选框必须没被锁住。
+  await wait(120)
+  const duringSave = await page.evaluate(() => {
+    const boxes = [...document.querySelectorAll('.cdx-member input[type="checkbox"]')]
+    return { disabled: boxes.some((box) => box.disabled), hint: document.querySelector('.cdx-main-foot .cdx-hint')?.innerText.trim() ?? '' }
+  })
+  assert.equal(duringSave.disabled, false, '成员保存在飞的时候复选框被禁用了')
 
   let after
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
     after = await readDomain()
     if ((after?.members.length ?? 0) >= 2) break
-    await wait(250)
+    await wait(100)
   }
-
-  const selected = await page.evaluate(() => document.querySelector('.cdx-search-meta')?.innerText.trim() ?? '')
-  console.log(JSON.stringify({ picked, after: after?.members.map((member) => member.name), selected }, null, 1))
-
   assert.equal(after?.members.length, 2, '连点两项后只落了一项')
   assert.deepEqual(
     after.members.map((member) => member.name).sort(),
-    [...picked].sort(),
+    [...picked.labels].sort(),
     '落盘的成员和点选的两项不一致',
   )
+
+  // 写完成 ≠ 写队列收尾：等页脚从「保存中…」回到常态，再数这一批的请求。
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const saving = await page.evaluate(() => (document.querySelector('.cdx-main-foot .cdx-hint')?.innerText ?? '').includes('保存中'))
+    if (!saving) break
+    await wait(100)
+  }
+
+  const burst = requests.slice(beforeClick)
+  const posts = burst.filter((request) => request.method === 'POST' && request.path.endsWith('/domains'))
+  const domainGets = burst.filter((request) => request.method === 'GET' && request.path.endsWith('/domains'))
+  const catalogGets = burst.filter((request) => request.method === 'GET' && request.path.endsWith('/catalog'))
+  assert.equal(posts.length, 1, `同一批连点发了 ${posts.length} 个写请求，应该合并成 1 个`)
+  assert.equal(domainGets.length, 1, `一次成员写后重拉了 ${domainGets.length} 次领域，应该只 1 次`)
+  assert.equal(catalogGets.length, 0, '成员写完不该重拉目录')
+
+  const stillSelected = await page.evaluate(() => document.querySelector('.cdx-domain[aria-selected="true"]')?.innerText ?? '')
+  assert.ok(stillSelected.includes(name), `成员写触发 reload 后选中跳走了：${stillSelected}`)
+
+  // 改名字：连打三次只在暂停后写一次，落最后一个值。
+  const renameBefore = requests.length
+  const typed = await page.evaluate(async () => {
+    const input = document.querySelector('.cdx-field input.cdx-input')
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+    for (const value of ['甲', '甲乙', '甲乙丙']) {
+      setter.call(input, value)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
+    input.blur()
+    return input.value
+  })
+  assert.equal(typed, '甲乙丙')
+  let renamed
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    renamed = await readDomain()
+    if (renamed?.name === '甲乙丙') break
+    await wait(100)
+  }
+  assert.equal(renamed?.name, '甲乙丙', '名字没有落成最后一个输入值')
+  const renamePosts = requests.slice(renameBefore).filter((request) => request.method === 'POST' && request.body.includes('"name"'))
+  assert.equal(renamePosts.length, 1, `一次改名的连打发了 ${renamePosts.length} 个写请求，应该只有 1 个`)
+
+  // 写失败要回滚：乐观打上的勾必须退回，并显示错误。
+  failMemberWrite = true
+  const rollback = await page.evaluate(async () => {
+    const box = [...document.querySelectorAll('.cdx-member input[type="checkbox"]')].find((item) => !item.checked)
+    if (box === undefined) throw new Error('找不到未勾选的成员，无法验证回滚')
+    box.click()
+    const optimistic = box.checked
+    await new Promise((resolve) => setTimeout(resolve, 800))
+    return {
+      optimistic,
+      after: box.checked,
+      error: document.querySelector('.cdx-error')?.innerText ?? '',
+    }
+  })
+  assert.equal(rollback.optimistic, true, '失败场景下没有先乐观打勾')
+  assert.equal(rollback.after, false, '写失败后勾选没有回滚')
+  assert.match(rollback.error, /成员保存失败/, '写失败后没有显示错误')
+
+  // 有缓存时再打开设置页：立即出内容，且目录不重复拉。
+  await page.evaluate(() => {
+    const tab = [...document.querySelectorAll('[class*="navCell"]')]
+      .find((el) => el.innerText.trim() === '通用设置')
+    tab?.click()
+  })
+  await wait(250)
+  const reopenBefore = requests.length
+  const reopenMs = await page.evaluate(async () => {
+    const tab = [...document.querySelectorAll('[class*="navCell"]')]
+      .find((el) => el.innerText.trim() === '上下文领域')
+    const started = performance.now()
+    tab?.click()
+    await new Promise((resolve) => {
+      const check = () => {
+        if (document.querySelectorAll('.cdx-domain').length > 0) resolve()
+        else requestAnimationFrame(check)
+      }
+      check()
+    })
+    return performance.now() - started
+  })
+  assert.ok(reopenMs <= 50, `有缓存时再打开设置页还是慢：${reopenMs.toFixed(1)}ms`)
+  const reopenGets = requests.slice(reopenBefore).filter((request) => request.method === 'GET' && request.path.endsWith('/catalog'))
+  assert.equal(reopenGets.length, 0, '连续打开设置页时目录被重复拉取')
+
+  const selected = await page.evaluate(() => document.querySelector('.cdx-search-meta')?.innerText.trim() ?? '')
   assert.match(selected, /2/, '页面显示已选数量不是 2')
-  console.log('E2E OK：同一瞬间连点两个成员，两项都保存')
+
+  console.log(JSON.stringify({
+    openMs: Number(openMs.toFixed(1)),
+    reopenMs: Number(reopenMs.toFixed(1)),
+    clickToCheckedMs: Number(picked.ms.toFixed(1)),
+    picked: picked.labels,
+    burst: { posts: posts.length, domainGets: domainGets.length, catalogGets: catalogGets.length },
+    renamePosts: renamePosts.length,
+  }, null, 1))
+  console.log('E2E OK：连点不丢、写合并、乐观打勾、失败回滚、改名防抖、缓存首屏')
 } finally {
   if (id !== undefined) {
-    await fetch(`${BASE}/context-domains/api/domains`, {
-      method: 'POST',
-      headers: { cookie: `${cookie.name}=${cookie.value}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ op: 'delete', id }),
-    }).catch(() => {})
+    await api({ op: 'delete', id }).catch(() => {})
   }
   await browser.close()
 }

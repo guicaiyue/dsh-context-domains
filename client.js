@@ -225,6 +225,25 @@ window.__ModuleLoader__.load({
 .cdx-empty-text{margin:0;font-size:11px;
   color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
 .cdx-hint{font-size:11px;color:var(--dsw-alias-label-tertiary, var(--dsw-alias-label-secondary))}
+/* 加载骨架：首次打开先给形状，不用「还没有领域」冒充加载中 */
+.cdx-skel{display:flex;flex-direction:column;gap:6px;width:100%;animation:cdx-pulse 1.2s ease-in-out infinite}
+.cdx-skel-line{grid-column:1 / -1;height:10px;border-radius:5px;
+  background:color-mix(in srgb, var(--dsw-alias-label-primary) 10%, transparent)}
+.cdx-skel-short{width:56%}
+.cdx-skel-domain{min-height:48px;padding:8px 12px;border-radius:8px;justify-content:center}
+.cdx-skel-main{min-height:120px;gap:12px;padding:8px 0}
+@keyframes cdx-pulse{0%,100%{opacity:.5}50%{opacity:1}}
+@media (prefers-reduced-motion: reduce){.cdx-skel{animation:none}}
+/* 错误只影响对应区块，带就地重试 */
+.cdx-error{grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:6px 8px;border-radius:6px;font-size:11px;line-height:1.5;
+  color:var(--dsw-alias-label-error);
+  background:color-mix(in srgb, var(--dsw-alias-label-error) 10%, transparent);
+  border:1px solid color-mix(in srgb, var(--dsw-alias-label-error) 30%, transparent)}
+.cdx-error-text{min-width:0;overflow-wrap:anywhere}
+.cdx-error .cdx-btn{flex:0 0 auto;height:22px;color:var(--dsw-alias-label-error)}
+/* 虚拟列表上下的占位：让滚动条仍按完整列表算长度 */
+.cdx-pad{grid-column:1 / -1;width:100%;pointer-events:none}
 .cdx-empty-btn{height:24px;padding:0 8px;font:inherit;font-size:11px;cursor:pointer;border-radius:6px;
   color:var(--dsw-alias-label-secondary);background:transparent;border:1px solid var(--dsw-alias-border-l2)}
 .cdx-empty-btn:hover{background:var(--dsw-alias-interactive-bg-hover, rgba(127,127,127,.12));
@@ -724,6 +743,79 @@ window.__ModuleLoader__.load({
       + '先给我一份归类清单，我确认后你用 POST /context-domains/api/domains\n'
       + '（op=create, name, description, members:[{type,name}]）逐条建好。'
 
+    const EMPTY_CATALOG = { skills: [], tools: [], suggestions: [], unassigned: { skills: [], tools: [] } }
+    const NO_MEMBERS = []
+    const CATALOG_TTL_MS = 60_000
+    const SEARCH_DEBOUNCE_MS = 120
+    const MEMBER_COALESCE_MS = 40
+    const META_DEBOUNCE_MS = 450
+    const VIRTUAL_THRESHOLD = 200
+    const MEMBER_ROW_HEIGHT = 26
+
+    // 设置页跨打开复用：模块级缓存活过组件卸载，第二次打开先出内容再后台校验。
+    const settingsCache = { domains: null, catalog: null, catalogAt: 0, selectedId: null }
+
+    /** 只用最新一次加载的结果：慢的旧响应回来时丢掉，不能覆盖新状态。 */
+    function createLoadGate() {
+      let current = 0
+      return {
+        begin() {
+          current += 1
+          return current
+        },
+        isCurrent(token) {
+          return token === current
+        },
+      }
+    }
+
+    /** 尾触发防抖；cancel 给清除筛选/卸载用，flush 给输入框失焦用。 */
+    function debounce(fn, ms) {
+      let timer = null
+      let lastArgs = []
+      const wrapped = (...args) => {
+        lastArgs = args
+        if (timer !== null) clearTimeout(timer)
+        timer = setTimeout(() => {
+          timer = null
+          fn(...lastArgs)
+        }, ms)
+      }
+      wrapped.cancel = () => {
+        if (timer !== null) clearTimeout(timer)
+        timer = null
+      }
+      wrapped.flush = () => {
+        if (timer === null) return
+        clearTimeout(timer)
+        timer = null
+        fn(...lastArgs)
+      }
+      return wrapped
+    }
+
+    /** reload 后保留选中；领域被删时选原位置的邻居，不回到第一个。 */
+    function pickSelected(domains, selectedId, previous = []) {
+      if (selectedId !== null && domains.some((domain) => domain.id === selectedId)) return selectedId
+      if (domains.length === 0) return null
+      const index = previous.findIndex((domain) => domain.id === selectedId)
+      if (index < 0) return domains[0].id
+      return domains[Math.min(index, domains.length - 1)].id
+    }
+
+    /**
+     * 大目录只渲染视口附近的行。返回行区间与上下占位高度，
+     * 滚动条仍按完整列表算长度。
+     */
+    function windowRange({ scrollTop = 0, viewportHeight = 260, rowHeight = MEMBER_ROW_HEIGHT, totalLines = 0, overscan = 6 } = {}) {
+      if (totalLines <= 0) return { start: 0, end: 0, padTop: 0, padBottom: 0 }
+      const top = Math.max(0, scrollTop)
+      // 结果变少时旧 scrollTop 可能远超新列表长度：夹到最后一行，别渲染出一片空白。
+      const start = Math.max(0, Math.min(totalLines - 1, Math.floor(top / rowHeight) - overscan))
+      const end = Math.min(totalLines, Math.ceil((top + Math.max(1, viewportHeight)) / rowHeight) + overscan)
+      return { start, end, padTop: start * rowHeight, padBottom: (totalLines - end) * rowHeight }
+    }
+
     /** 把一次勾选合并进成员列表：只动目标那一项，其余顺序不变。 */
     function toggleMember(members, type, name, on) {
       const next = [...(members ?? [])]
@@ -733,73 +825,203 @@ window.__ModuleLoader__.load({
       return next
     }
 
+    /** 把输入框里攒下的改动变成一次 update；和已落盘值相同就不发。 */
+    function metaPayload(pending, storedDomains = settingsCache.domains?.domains ?? []) {
+      const payload = { op: 'update', id: pending.id }
+      if (pending.name !== undefined) payload.name = pending.name
+      if (pending.description !== undefined) payload.description = pending.description
+      const stored = storedDomains.find((domain) => domain.id === pending.id)
+      if (payload.name !== undefined && stored?.name === payload.name) delete payload.name
+      if (payload.description !== undefined && (stored?.description ?? '') === payload.description) delete payload.description
+      if (payload.name === undefined && payload.description === undefined) return null
+      return payload
+    }
+
     /**
      * 成员勾选的写入口。抽出来是为了让 node:test 能直接驱动两次连点，
      * 不用把 React 设置页整个渲染起来。
      *
-     * 关键：写必须串行，而且每次都拿队列里的「最新意图」提交。旧实现每次都用
-     * 渲染快照算 next，两次连点会各自提交一份整数组，后写的覆盖先写的。
+     * 每个领域一条队列：连点在 40ms 合并窗口里压成一次提交，写串行；每次提交都拿
+     * 队列里的最新意图。旧实现每次都用渲染快照算 next，两次连点会后写覆盖先写。
      */
-    function createMemberWriter({ write, reload, onBusy, onError }) {
-      let domainId = null
-      let members = []
-      let dirty = false
-      let current = null
+    function createMemberWriter({ write, reload, onBusy, onError, onMembers, onIdle, coalesceMs = MEMBER_COALESCE_MS }) {
+      const queues = new Map()
+      let busyCount = 0
+      const setBusy = (on) => {
+        busyCount += on ? 1 : -1
+        onBusy?.(busyCount > 0)
+      }
 
-      const flush = () => {
-        if (current !== null) return current
-        if (!dirty) return Promise.resolve()
-        current = (async () => {
-          onBusy?.(true)
+      const settle = (queue) => {
+        if (queue.dirty || queue.running !== null) return
+        const waiters = queue.waiters
+        queue.waiters = []
+        for (const resolve of waiters) resolve()
+        onIdle?.(queue.id)
+      }
+
+      const schedule = (queue) => {
+        if (queue.timer !== null || queue.running !== null) return
+        queue.timer = setTimeout(() => {
+          queue.timer = null
+          void drain(queue)
+        }, coalesceMs)
+      }
+
+      const drain = (queue) => {
+        if (queue.running !== null) return queue.running
+        queue.running = (async () => {
+          let wrote = false
+          setBusy(true)
           try {
-            while (dirty) {
-              dirty = false
-              const id = domainId
-              const next = members
-              await write(id, next)
-              await reload?.()
+            while (queue.dirty) {
+              queue.dirty = false
+              const next = queue.members
+              await write(queue.id, next)
+              wrote = true
             }
+            // 一次连点只重拉一次领域；目录不跟着刷。
+            if (wrote) await reload?.(queue.id)
           } catch (cause) {
             // 失败就丢掉未落盘意图，下一次勾选重新从页面快照起算，避免把幽灵成员写上去。
-            dirty = false
-            domainId = null
-            members = []
-            onError?.(cause)
+            queue.dirty = false
+            queue.members = []
+            queue.dead = true
+            onError?.(cause, queue.id)
           } finally {
-            onBusy?.(false)
+            setBusy(false)
           }
         })().finally(() => {
-          current = null
+          queue.running = null
+          if (queue.dirty) schedule(queue)
+          else settle(queue)
         })
-        return current
+        return queue.running
       }
 
       return {
         toggle(id, base, type, name, on) {
-          // 只有换领域时才回到页面快照；同一领域的连点都接在队列里的最新成员后面。
-          if (domainId !== id) {
-            domainId = id
-            members = [...(base ?? [])]
-            dirty = false
+          let queue = queues.get(id)
+          if (queue === undefined) {
+            queue = { id, members: [...(base ?? [])], dirty: false, dead: false, timer: null, running: null, waiters: [] }
+            queues.set(id, queue)
           }
-          members = toggleMember(members, type, name, on)
-          dirty = true
-          return flush()
+          // 上一次写失败后，下一次勾选从页面快照重新起算。
+          if (queue.dead) {
+            queue.members = [...(base ?? [])]
+            queue.dead = false
+          }
+          queue.members = toggleMember(queue.members, type, name, on)
+          queue.dirty = true
+          // 先让界面当帧打勾，再走网络。
+          onMembers?.(id, queue.members)
+          const done = new Promise((resolve) => queue.waiters.push(resolve))
+          schedule(queue)
+          return done
         },
       }
     }
 
+    const memoComponent = typeof React.memo === 'function' ? React.memo : (component) => component
+
+    /** 成员行只有自己那一格变化时才重渲染；onToggle 由父组件保持稳定引用。 */
+    const MemberRow = memoComponent(function MemberRow({ type, name, checked, onToggle }) {
+      return h(
+        'label',
+        { className: 'cdx-member', title: name, 'data-type': type },
+        h('input', {
+          type: 'checkbox',
+          checked,
+          onChange: (event) => onToggle(type, name, event.target.checked),
+        }),
+        h('span', { className: 'cdx-check', 'aria-hidden': 'true' }),
+        h('span', { className: 'cdx-member-name' }, name),
+      )
+    })
+
     function DomainsSettings() {
-      const [domains, setDomains] = React.useState([])
-      const [catalog, setCatalog] = React.useState({ skills: [], tools: [], suggestions: [], unassigned: { skills: [], tools: [] } })
-      const [selectedId, setSelectedId] = React.useState(null)
+      const cachedDomains = settingsCache.domains
+      const cachedCatalog = settingsCache.catalog
+      const [domains, setDomains] = React.useState(() => cachedDomains?.domains ?? [])
+      const [catalog, setCatalog] = React.useState(() => cachedCatalog ?? EMPTY_CATALOG)
+      const [selectedId, setSelectedId] = React.useState(() => settingsCache.selectedId)
+      const [searchInput, setSearchInput] = React.useState('')
       const [query, setQuery] = React.useState('')
       const [tab, setTab] = React.useState(lastMemberTab)
       const [filter, setFilter] = React.useState(lastMemberFilter)
       const [aiOpen, setAiOpen] = React.useState(false)
       const [copied, setCopied] = React.useState(false)
-      const [error, setError] = React.useState(null)
-      const [busy, setBusy] = React.useState(false)
+      const [domainsError, setDomainsError] = React.useState(null)
+      const [catalogError, setCatalogError] = React.useState(null)
+      const [loadingDomains, setLoadingDomains] = React.useState(cachedDomains === null)
+      const [loadingCatalog, setLoadingCatalog] = React.useState(cachedCatalog === null)
+      const [savingMembers, setSavingMembers] = React.useState(false)
+      const [metaSaving, setMetaSaving] = React.useState(false)
+      const [mutating, setMutating] = React.useState(false)
+      const [memberDraft, setMemberDraft] = React.useState(null)
+      const [listState, setListState] = React.useState({ scrollTop: 0, height: 260 })
+
+      const domainGate = React.useRef(null)
+      if (domainGate.current === null) domainGate.current = createLoadGate()
+      const catalogGate = React.useRef(null)
+      if (catalogGate.current === null) catalogGate.current = createLoadGate()
+
+      const loadDomains = React.useCallback(async () => {
+        const token = domainGate.current.begin()
+        setLoadingDomains(true)
+        try {
+          const value = await call('/domains')
+          if (!domainGate.current.isCurrent(token)) return
+          settingsCache.domains = value
+          setDomains(value.domains)
+          setDomainsError(null)
+        } catch (cause) {
+          if (!domainGate.current.isCurrent(token)) return
+          setDomainsError(cause.message ?? String(cause))
+        } finally {
+          if (domainGate.current.isCurrent(token)) setLoadingDomains(false)
+        }
+      }, [])
+
+      const loadCatalog = React.useCallback(async (force = false) => {
+        const fresh = settingsCache.catalog !== null && Date.now() - settingsCache.catalogAt < CATALOG_TTL_MS
+        if (!force && fresh) {
+          setCatalog(settingsCache.catalog)
+          setCatalogError(null)
+          return
+        }
+        const token = catalogGate.current.begin()
+        setLoadingCatalog(true)
+        try {
+          const value = await call('/catalog')
+          if (!catalogGate.current.isCurrent(token)) return
+          settingsCache.catalog = value
+          settingsCache.catalogAt = Date.now()
+          setCatalog(value)
+          setCatalogError(null)
+        } catch (cause) {
+          if (!catalogGate.current.isCurrent(token)) return
+          setCatalogError(cause.message ?? String(cause))
+        } finally {
+          if (catalogGate.current.isCurrent(token)) setLoadingCatalog(false)
+        }
+      }, [])
+
+      React.useEffect(() => {
+        void loadDomains()
+        void loadCatalog()
+      }, [loadDomains, loadCatalog])
+
+      // reload 后保留选中；领域被删时用上一份列表找回原来位置，选相邻项。
+      const previousDomains = React.useRef(domains)
+      React.useEffect(() => {
+        const next = pickSelected(domains, selectedId, previousDomains.current)
+        previousDomains.current = domains
+        if (next !== selectedId) {
+          setSelectedId(next)
+          settingsCache.selectedId = next
+        }
+      }, [domains, selectedId])
 
       const pickTab = (next) => {
         lastMemberTab = next
@@ -810,89 +1032,196 @@ window.__ModuleLoader__.load({
         setFilter(next)
       }
 
-      const load = React.useCallback(async () => {
-        try {
-          const [domainValue, catalogValue] = await Promise.all([call('/domains'), call('/catalog')])
-          setDomains(domainValue.domains)
-          setCatalog(catalogValue)
-          setError(null)
-        } catch (cause) {
-          setError(cause.message ?? String(cause))
-        }
-      }, [])
-
+      // 搜索输入先落到框里，过滤晚 120ms 再跑；连打五个字只算一次。
+      const commitSearch = React.useMemo(() => debounce((value) => setQuery(value), SEARCH_DEBOUNCE_MS), [])
       React.useEffect(() => {
-        void load()
-      }, [load])
-
-      React.useEffect(() => {
-        if (selectedId === null && domains.length > 0) setSelectedId(domains[0].id)
-      }, [domains, selectedId])
+        commitSearch(searchInput)
+        return () => commitSearch.cancel()
+      }, [searchInput, commitSearch])
 
       const selected = domains.find((domain) => domain.id === selectedId) ?? null
 
       // 成员写不跟全局 busy 走：勾选是输入，连续点两项必须都能进队。
-      // 跟 busy 一起禁掉复选框的话，浏览器会把第二次点击吞掉，表现仍是「后一个改动丢了」。
-      // 改名 / 删除 / 默认开关仍由 run 的 busy 管。
-      const memberWriter = React.useRef(null)
-      if (memberWriter.current === null) {
-        memberWriter.current = createMemberWriter({
+      // 跟 busy 一起禁掉复选框的话，浏览器会把第二次点击吞掉。
+      const selectedRef = React.useRef(selected)
+      selectedRef.current = selected
+      const draftRef = React.useRef(memberDraft)
+      draftRef.current = memberDraft
+
+      const writerRef = React.useRef(null)
+      if (writerRef.current === null) {
+        writerRef.current = createMemberWriter({
           write: (id, members) => call('/domains', { op: 'update', id, members }),
-          reload: load,
-          onError: (cause) => setError(cause.message ?? String(cause)),
+          reload: async () => {
+            await loadDomains()
+            broadcast()
+          },
+          onBusy: setSavingMembers,
+          onMembers: (id, members) => setMemberDraft({ id, members }),
+          onIdle: () => setMemberDraft(null),
+          onError: (cause) => setDomainsError(cause.message ?? String(cause)),
         })
       }
 
-      React.useEffect(() => {
-        if (!aiOpen) return undefined
-        const onKey = (event) => {
-          if (event.key !== 'Escape') return
-          // 只关这一层：宿主设置弹窗也监听 Esc，别连带把设置页关掉
-          event.stopPropagation()
-          event.stopImmediatePropagation?.()
-          setAiOpen(false)
+      const setMember = React.useCallback((type, name, on) => {
+        const domain = selectedRef.current
+        if (domain === null) return
+        const draft = draftRef.current
+        const base = draft !== null && draft.id === domain.id ? draft.members : (domain.members ?? [])
+        void writerRef.current.toggle(domain.id, base, type, name, on)
+      }, [])
+
+      /* --------------------------------------------------- 名称/说明防抖 */
+      const metaTimer = React.useRef(null)
+      const metaPending = React.useRef(null)
+
+      const flushMeta = React.useCallback(async () => {
+        if (metaTimer.current !== null) {
+          clearTimeout(metaTimer.current)
+          metaTimer.current = null
         }
-        document.addEventListener('keydown', onKey, true)
-        return () => document.removeEventListener('keydown', onKey, true)
-      }, [aiOpen])
+        const pending = metaPending.current
+        metaPending.current = null
+        const payload = pending === null ? null : metaPayload(pending)
+        if (payload === null) return
+        setMetaSaving(true)
+        try {
+          await call('/domains', payload)
+          await loadDomains()
+          broadcast()
+        } catch (cause) {
+          setDomainsError(cause.message ?? String(cause))
+        } finally {
+          setMetaSaving(false)
+        }
+      }, [loadDomains])
+
+      const queueMeta = (id, patch) => {
+        if (metaPending.current === null || metaPending.current.id !== id) metaPending.current = { id }
+        Object.assign(metaPending.current, patch)
+        if (metaTimer.current !== null) clearTimeout(metaTimer.current)
+        metaTimer.current = setTimeout(() => {
+          metaTimer.current = null
+          void flushMeta()
+        }, META_DEBOUNCE_MS)
+      }
+
+      // 关掉设置页时把还没到点的编辑直接发出去，别让用户最后几个字白打。
+      React.useEffect(() => () => {
+        if (metaTimer.current !== null) clearTimeout(metaTimer.current)
+        const pending = metaPending.current
+        metaPending.current = null
+        const payload = pending === null ? null : metaPayload(pending)
+        if (payload !== null) void call('/domains', payload).then(() => broadcast()).catch(() => {})
+      }, [])
+
       const run = async (fn) => {
-        setBusy(true)
+        setMutating(true)
         try {
           await fn()
         } catch (cause) {
-          setError(cause.message ?? String(cause))
+          setDomainsError(cause.message ?? String(cause))
         } finally {
-          setBusy(false)
+          setMutating(false)
         }
       }
       // 新建即默认启用：用户建领域的意图就是「要用它」，默认值别再让人多勾一次
       const create = (draft) => run(async () => {
         const created = await call('/domains', { op: 'create', defaultOn: true, ...draft })
-        await load()
+        settingsCache.selectedId = created.id
         setSelectedId(created.id)
+        await loadDomains()
+        broadcast()
       })
       const update = (patch) => run(async () => {
         if (selected) await call('/domains', { op: 'update', id: selected.id, ...patch })
-        await load()
+        await loadDomains()
+        broadcast()
       })
       const remove = () => run(async () => {
         if (!selected) return
+        const index = domains.findIndex((domain) => domain.id === selected.id)
+        const rest = domains.filter((domain) => domain.id !== selected.id)
+        const next = rest[Math.min(index, rest.length - 1)]?.id ?? null
         await call('/domains', { op: 'delete', id: selected.id })
-        setSelectedId(null)
-        await load()
+        settingsCache.selectedId = next
+        setSelectedId(next)
+        await loadDomains()
+        broadcast()
       })
 
-      const memberSet = new Set((selected?.members ?? []).map((m) => `${m.type}:${m.name}`))
+      const pickDomain = (id) => {
+        if (id === selectedId) return
+        void flushMeta()
+        settingsCache.selectedId = id
+        setSelectedId(id)
+        setMemberDraft(null)
+        setListState((prev) => (prev.scrollTop === 0 ? prev : { ...prev, scrollTop: 0 }))
+      }
+
+      const members = memberDraft !== null && memberDraft.id === selectedId
+        ? memberDraft.members
+        : (selected?.members ?? NO_MEMBERS)
+      const memberSet = React.useMemo(
+        () => new Set(members.map((member) => `${member.type}:${member.name}`)),
+        [members],
+      )
+
       const keywords = query.trim().toLowerCase()
-      const match = (name) => keywords === '' || name.toLowerCase().includes(keywords)
-      const pool = {
-        skill: catalog.skills.filter((item) => match(item.name)),
-        tool: catalog.tools.filter((item) => match(item.name)),
+      // 搜索/页签只跟目录与关键字有关；勾选一项不重跑名称匹配。
+      const matchedRows = React.useMemo(() => {
+        const types = tab === 'all' ? ['skill', 'tool'] : [tab]
+        const list = []
+        for (const type of types) {
+          const source = type === 'skill' ? catalog.skills : catalog.tools
+          for (const item of source) {
+            if (keywords !== '' && !item.name.toLowerCase().includes(keywords)) continue
+            list.push({ type, name: item.name })
+          }
+        }
+        return list
+      }, [catalog, tab, keywords])
+      // 「已选 / 未选」才看成员集合，且只在匹配结果上筛。
+      const rows = React.useMemo(() => {
+        if (filter === 'all') return matchedRows
+        return matchedRows.filter((row) => {
+          const on = memberSet.has(`${row.type}:${row.name}`)
+          return filter === 'picked' ? on : !on
+        })
+      }, [matchedRows, filter, memberSet])
+
+      // 领域计数只在 domains 变化时算一次，勾选/搜索不重算。
+      const countsById = React.useMemo(() => {
+        const map = new Map()
+        for (const domain of domains) map.set(domain.id, counts(domain))
+        return map
+      }, [domains])
+
+      /* ------------------------------------------------------ 大目录窗口 */
+      const columns = tab === 'all' ? 2 : 1
+      const totalLines = Math.ceil(rows.length / columns)
+      const virtualized = rows.length > VIRTUAL_THRESHOLD
+      const range = virtualized
+        ? windowRange({ scrollTop: listState.scrollTop, viewportHeight: listState.height, totalLines, rowHeight: MEMBER_ROW_HEIGHT })
+        : { start: 0, end: totalLines, padTop: 0, padBottom: 0 }
+      const visibleRows = virtualized ? rows.slice(range.start * columns, range.end * columns) : rows
+      const listRef = React.useRef(null)
+      const scrollRaf = React.useRef(0)
+      const onListScroll = (event) => {
+        if (scrollRaf.current !== 0) return
+        const el = event.currentTarget
+        scrollRaf.current = requestAnimationFrame(() => {
+          scrollRaf.current = 0
+          setListState({ scrollTop: el.scrollTop, height: el.clientHeight || 260 })
+        })
       }
-      const setMember = (type, name, on) => {
-        if (!selected) return
-        void memberWriter.current.toggle(selected.id, selected.members ?? [], type, name, on)
-      }
+      React.useEffect(() => () => cancelAnimationFrame(scrollRaf.current), [])
+      React.useEffect(() => {
+        const el = listRef.current
+        if (el === null) return
+        el.scrollTop = 0
+        setListState((prev) => (prev.scrollTop === 0 ? prev : { ...prev, scrollTop: 0 }))
+      }, [tab, filter, keywords, selectedId])
 
       const copyPrompt = async () => {
         try {
@@ -931,18 +1260,6 @@ window.__ModuleLoader__.load({
           ),
         )
 
-      // 成员行：技能在前、工具在后。类型由页签表达，列表本身保持无装饰（视觉稿的做法），
-      // 顺序本身就是「混装」的暗示。
-      const rows = (tab === 'all' ? ['skill', 'tool'] : [tab]).flatMap((type) =>
-        pool[type]
-          .filter((item) => {
-            if (filter === 'all') return true
-            const on = memberSet.has(`${type}:${item.name}`)
-            return filter === 'picked' ? on : !on
-          })
-          .map((item) => ({ type, name: item.name })),
-      )
-
       const emptyText = () => {
         if (keywords !== '') return `没有匹配「${query.trim()}」的成员`
         if (filter === 'picked') return '还没有已选成员'
@@ -953,32 +1270,51 @@ window.__ModuleLoader__.load({
       }
 
       const clearFilters = () => {
+        commitSearch.cancel()
+        setSearchInput('')
         setQuery('')
         pickTab('all')
         pickFilter('all')
       }
 
-      const memberList = rows.length === 0
+      const catalogEmpty = catalog.skills.length === 0 && catalog.tools.length === 0
+      const catalogSkeleton = loadingCatalog && catalogEmpty
+      // 目录没拿到时别用「还没有可用的成员」冒充空目录：错误已经在上方说明。
+      const catalogUnavailable = !catalogSkeleton && catalogError !== null && catalogEmpty
+      const memberList = catalogSkeleton
         ? h(
             'div',
-            { className: 'cdx-empty' },
-            h('p', { className: 'cdx-empty-text' }, emptyText()),
-            h('button', { className: 'cdx-empty-btn', type: 'button', onClick: clearFilters }, '清除筛选'),
+            { className: 'cdx-list' },
+            [0, 1, 2, 3, 4].map((index) => h('div', { key: index, className: 'cdx-skel cdx-skel-line' })),
           )
-        : rows.map((row) =>
-            h(
-              'label',
-              { className: 'cdx-member', key: `${row.type}:${row.name}`, title: row.name },
-              h('input', {
-                type: 'checkbox',
-                checked: memberSet.has(`${row.type}:${row.name}`),
-                disabled: busy,
-                onChange: (event) => setMember(row.type, row.name, event.target.checked),
-              }),
-              h('span', { className: 'cdx-check', 'aria-hidden': 'true' }),
-              h('span', { className: 'cdx-member-name' }, row.name),
-            ),
-          )
+        : catalogUnavailable
+          ? h('div', { className: 'cdx-list' })
+          : rows.length === 0
+          ? h(
+              'div',
+              { className: 'cdx-empty' },
+              h('p', { className: 'cdx-empty-text' }, emptyText()),
+              h('button', { className: 'cdx-empty-btn', type: 'button', onClick: clearFilters }, '清除筛选'),
+            )
+          : h(
+              React.Fragment,
+              null,
+              virtualized && range.padTop > 0
+                ? h('div', { key: 'pad-top', className: 'cdx-pad', style: { height: `${range.padTop}px` }, 'aria-hidden': 'true' })
+                : null,
+              visibleRows.map((row) =>
+                h(MemberRow, {
+                  key: `${row.type}:${row.name}`,
+                  type: row.type,
+                  name: row.name,
+                  checked: memberSet.has(`${row.type}:${row.name}`),
+                  onToggle: setMember,
+                }),
+              ),
+              virtualized && range.padBottom > 0
+                ? h('div', { key: 'pad-bottom', className: 'cdx-pad', style: { height: `${range.padBottom}px` }, 'aria-hidden': 'true' })
+                : null,
+            )
 
       // AI 弹窗：portal 到 body 且 z-index 高过宿主设置弹窗（1000/1100 的 fixed 层），
       // 否则会被压在那个对话框下面 —— 表现就是「点了 AI 什么都不出现」。
@@ -1046,7 +1382,7 @@ window.__ModuleLoader__.load({
         : null
 
       const domainRow = (domain) => {
-        const c = counts(domain)
+        const c = countsById.get(domain.id) ?? { skills: 0, tools: 0, total: 0 }
         return h(
           'button',
           {
@@ -1054,7 +1390,7 @@ window.__ModuleLoader__.load({
             className: 'cdx-domain',
             type: 'button',
             'aria-selected': selectedId === domain.id ? 'true' : 'false',
-            onClick: () => setSelectedId(domain.id),
+            onClick: () => pickDomain(domain.id),
           },
           h('span', { className: 'cdx-domain-mark', 'aria-hidden': 'true' }),
           h(
@@ -1072,6 +1408,16 @@ window.__ModuleLoader__.load({
         )
       }
 
+      const showDomainSkeleton = loadingDomains && domains.length === 0
+      const domainErrorBlock = domainsError !== null
+        ? h(
+            'div',
+            { className: 'cdx-error', role: 'alert' },
+            h('span', { className: 'cdx-error-text' }, domainsError),
+            h('button', { className: 'cdx-btn', type: 'button', onClick: () => void loadDomains() }, '重试'),
+          )
+        : null
+
       return h(
         'div',
         { className: 'cdx-set' },
@@ -1086,7 +1432,7 @@ window.__ModuleLoader__.load({
               'div',
               { className: 'cdx-side-actions' },
               h('button', {
-                className: 'cdx-btn', type: 'button', disabled: busy,
+                className: 'cdx-btn', type: 'button', disabled: mutating,
                 onClick: () => void create({ name: '新领域', members: [] }),
               }, '＋ 新建'),
               h('button', {
@@ -1100,19 +1446,27 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'cdx-side-list', role: 'list' },
-            domains.length === 0
-              ? h(
-                  'div',
-                  { className: 'cdx-empty' },
-                  h('p', { className: 'cdx-empty-text' }, '还没有领域，可以从建议开始'),
-                  (catalog.suggestions ?? []).map((s) =>
-                    h('button', {
-                      key: s.name, className: 'cdx-empty-btn', type: 'button', disabled: busy,
-                      onClick: () => void create({ name: s.name, members: s.members }),
-                    }, `${s.name} · ${s.members.length} 项`),
-                  ),
+            showDomainSkeleton
+              ? [0, 1, 2, 3].map((index) =>
+                  h('div', { key: index, className: 'cdx-skel cdx-skel-domain' },
+                    h('span', { className: 'cdx-skel cdx-skel-line' }),
+                    h('span', { className: 'cdx-skel cdx-skel-line cdx-skel-short' })),
                 )
-              : domains.map(domainRow),
+              : domains.length === 0
+                ? domainsError !== null
+                  ? domainErrorBlock
+                  : h(
+                      'div',
+                      { className: 'cdx-empty' },
+                      h('p', { className: 'cdx-empty-text' }, '还没有领域，可以从建议开始'),
+                      (catalog.suggestions ?? []).map((s) =>
+                        h('button', {
+                          key: s.name, className: 'cdx-empty-btn', type: 'button', disabled: mutating,
+                          onClick: () => void create({ name: s.name, members: s.members }),
+                        }, `${s.name} · ${s.members.length} 项`),
+                      ),
+                    )
+                : domains.map(domainRow),
           ),
           h('p', { className: 'cdx-side-foot' },
             `未归入领域：${catalog.unassigned?.skills?.length ?? 0} skill · ${catalog.unassigned?.tools?.length ?? 0} tool`),
@@ -1120,12 +1474,16 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { className: 'cdx-main' },
-          error
-            ? h('div', { className: 'cdx-empty-text', style: { color: 'var(--dsw-alias-label-error)' } }, error)
-            : null,
+          selected !== null && domainsError !== null ? domainErrorBlock : null,
           selected === null
-            ? h('div', { className: 'cdx-empty', style: { minHeight: '0', flex: '1 1 auto' } },
-                h('p', { className: 'cdx-empty-text' }, '从左侧选一个领域，或新建一个。领域只做归纳：一个领域里可以同时装 skill 和 tool。'))
+            ? showDomainSkeleton
+              ? h('div', { className: 'cdx-empty', style: { minHeight: '0', flex: '1 1 auto' } },
+                  h('div', { className: 'cdx-skel cdx-skel-main' },
+                    h('span', { className: 'cdx-skel cdx-skel-line' }),
+                    h('span', { className: 'cdx-skel cdx-skel-line cdx-skel-short' }),
+                    h('span', { className: 'cdx-skel cdx-skel-line' })))
+              : h('div', { className: 'cdx-empty', style: { minHeight: '0', flex: '1 1 auto' } },
+                  h('p', { className: 'cdx-empty-text' }, domainsError !== null ? domainsError : '从左侧选一个领域，或新建一个。领域只做归纳：一个领域里可以同时装 skill 和 tool。'))
             : h(
                 React.Fragment,
                 null,
@@ -1133,9 +1491,20 @@ window.__ModuleLoader__.load({
                   h('span', { className: 'cdx-field-lbl' }, '名称'),
                   h('input', {
                     className: 'cdx-input', defaultValue: selected.name, key: `${selected.id}:name`, spellCheck: false,
-                    onBlur: (event) => {
+                    onInput: (event) => {
                       const value = event.target.value.trim()
-                      if (value !== '' && value !== selected.name) void update({ name: value })
+                      if (value === '') {
+                        if (metaPending.current?.id === selected.id) delete metaPending.current.name
+                      } else {
+                        queueMeta(selected.id, { name: value })
+                      }
+                    },
+                    onBlur: (event) => {
+                      if (event.target.value.trim() === '') {
+                        event.target.value = selected.name
+                        if (metaPending.current?.id === selected.id) delete metaPending.current.name
+                      }
+                      void flushMeta()
                     },
                   })),
                 h('label', { className: 'cdx-field' },
@@ -1144,7 +1513,8 @@ window.__ModuleLoader__.load({
                     className: 'cdx-input cdx-input-area', rows: 2, spellCheck: false,
                     defaultValue: selected.description ?? '', key: `${selected.id}:desc`,
                     placeholder: '这个领域装了什么，什么时候要开',
-                    onBlur: (event) => void update({ description: event.target.value }),
+                    onInput: (event) => queueMeta(selected.id, { description: event.target.value }),
+                    onBlur: () => void flushMeta(),
                   })),
                 h('div', { className: 'cdx-switchrow' },
                   h('span', { className: 'cdx-switchrow-text' },
@@ -1153,15 +1523,15 @@ window.__ModuleLoader__.load({
                   h('button', {
                     className: 'cdx-switch', type: 'button', role: 'switch',
                     'aria-checked': selected.defaultOn ? 'true' : 'false', 'aria-label': '默认启用',
-                    disabled: busy,
+                    disabled: mutating,
                     onClick: () => void update({ defaultOn: !selected.defaultOn }),
                   })),
                 h('div', { className: 'cdx-members' },
                   h('div', { className: 'cdx-search' },
                     h('input', {
                       className: 'cdx-search-input', type: 'search', placeholder: '搜索成员名称',
-                      'aria-label': '搜索成员', value: query,
-                      onChange: (event) => setQuery(event.target.value),
+                      'aria-label': '搜索成员', value: searchInput,
+                      onChange: (event) => setSearchInput(event.target.value),
                     }),
                     h('span', { className: 'cdx-search-meta' }, `已选 ${memberSet.size} 项`)),
                   h('div', { className: 'cdx-filters' },
@@ -1170,13 +1540,25 @@ window.__ModuleLoader__.load({
                       h('span', { className: 'cdx-filters-lbl' }, '显示'),
                       segmented('显示范围',
                         [['all', '全部成员'], ['picked', '已选'], ['unpicked', '未选']], filter, pickFilter))),
+                  catalogError !== null
+                    ? h('div', { className: 'cdx-error', role: 'alert' },
+                        h('span', { className: 'cdx-error-text' }, catalogError),
+                        h('button', { className: 'cdx-btn', type: 'button', onClick: () => void loadCatalog(true) }, '重试'))
+                    : null,
                   h('div', {
+                    ref: listRef,
                     className: tab === 'all' ? 'cdx-list' : 'cdx-list cdx-list-one',
                     role: 'group', 'aria-label': '成员列表',
+                    onScroll: onListScroll,
                   }, memberList)),
                 h('div', { className: 'cdx-main-foot' },
-                  h('button', { className: 'cdx-btn cdx-btn-danger', type: 'button', disabled: busy, onClick: () => void remove() }, '删除领域'),
-                  h('span', { className: 'cdx-hint' }, '保存即时生效，下一轮生效')),
+                  h('button', {
+                    className: 'cdx-btn cdx-btn-danger', type: 'button',
+                    disabled: mutating || savingMembers || memberDraft !== null,
+                    onClick: () => void remove(),
+                  }, '删除领域'),
+                  h('span', { className: 'cdx-hint' },
+                    savingMembers || metaSaving ? '保存中…' : '保存即时生效，下一轮生效')),
               ),
         ),
         aiDialog,
@@ -1198,7 +1580,7 @@ window.__ModuleLoader__.load({
       name: NS,
       inject: ['slots', 'locale'],
       // 只给 node:test 用：宿主只读 name / inject / apply，多一个字段不影响加载。
-      __test: { toggleMember, createMemberWriter },
+      __test: { toggleMember, createMemberWriter, metaPayload, windowRange, pickSelected, createLoadGate, debounce },
       apply(ctx) {
         ensureStyles()
         ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'context-domains: dictionaries')
