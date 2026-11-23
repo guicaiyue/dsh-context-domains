@@ -4,3 +4,6 @@ node_modules/
 # 插件自有数据不随仓库走（运行时落在 $DSH_HOME/context-domains）
 state.json
 *.bad-*
+
+# 项目内 skill：中台跑这个仓库时由 dsh 从 <cwd>/.dsh/skills 发现（rank 100，高于 $DSH_HOME/skills）
+# 不进 npm 包（package.json 的 files 不含 .dsh），也不进仓库历史以外的任何地方
