@@ -40,6 +40,22 @@ git commit -am "chore: release vX.Y.Z"
 git tag vX.Y.Z && git push origin main --tags
 ```
 
+**推完不用再手工补什么。** 插件没有「装在机器上跑」的形态，「上线」= 三个交付面同时成立：
+
+1. GitHub Release 建好，资产齐（带版本 tgz + 稳定别名 `dsh-context-domains.tgz` + `SHA256SUMS.txt`），
+   别名地址 200 —— `release.yml` 自己做；
+2. npm 上有这个版本 —— `release.yml` 有 `NPM_TOKEN` 就自己发；
+3. 插件市场条目（awesome-dsh-plugin 的 `data/plugins/guicaiyue__dsh-context-domains.yml`）与这一版一致。
+
+2、3 两面由 autoloop 中台的规则「上下文领域：自动上线」收尾：`release.yml` 的 `notify` job 在资产挂好后
+POST `context-domains.release`（来源 github，subject 是 tag）→ NAS 的 `nas-ops` 跑
+`xrznas/context-domains/release/run.sh`。缺 npm 就从 Release 的 tgz 补发；条目与这一版不同就在
+fork 上开 `market/v<版本>` 分支提 PR（字节相同就不提）。三面齐了才算一版上线，任何一面没齐，
+那张卡片和 workflow 都会红。
+
+所以**别把 tag 当重试按钮**：删标签重建会让 Release 变 untagged draft、稳定别名 404（那一轮会被判「没跑成」）。
+发坏了就 bump 版本再发一版。
+
 ## 不要碰
 
 - `$DSH_HOME/context-domains/state.json` 是唯一真相（用户手写的领域都在里面），

@@ -44,6 +44,18 @@ npm view dsh-context-domains version --registry=https://registry.npmjs.org
    `.github/workflows/release.yml` 会先建 GitHub Release（始终），再因为 `NPM_TOKEN`
    存在而跑 `npm publish`。没配 secret 时这一步跳过，其它照常。
 
+4. 推完不用再手工补。`release.yml` 末尾的 `notify` job 会回调 autoloop 中台
+   （`context-domains.release`，subject 是 tag），由 NAS 的规则「上下文领域：自动上线」把两面收齐：
+
+   - **npm**：registry 上缺这一版就从 Release 里那个 tgz 补发（`npm publish <tgz>`，和 CI 发的是同一个文件）；
+   - **插件市场**：`awesome-dsh-plugin` 的 `data/plugins/guicaiyue__dsh-context-domains.yml` 与 tag 里的
+     `docs/market/…yml` 不一致就在 fork 上开 `market/v<版本>` 提 PR；字节一致就不提（幂等）。
+
+   三面（Release / npm / 市场）齐了才算一版上线。哪面没齐，workflow 红、卡片也红。
+
+> 那条链路要 NAS 上的 `ops/secrets/npm.env`（600，`NPM_TOKEN=…`）。它是 NAS 侧的兜底：
+> CI 正常时 npm 早就发好了，这里只核实。
+
 用 `scripts/npm-onboard.sh` 可以一条命令走完「登录 → 发版 → 写 secret」。
 
 ## 3. 发布被 2FA 挡住（E403）

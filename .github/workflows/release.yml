@@ -8,6 +8,9 @@ name: release
 #   git tag v0.3.1 && git push origin main --tags
 #
 # 版本号以 package.json 为准：标签与它不一致时任务直接失败，不发版。
+#
+# 发完之后还有一步：notify job 回调中台（context-domains.release），由 NAS 的 ops 把
+# 「npm 有没有这一版」「插件市场条目跟不跟得上」这两面收齐。三面齐了才算一版上线。
 
 on:
   push:
@@ -157,3 +160,81 @@ jobs:
             echo "  dsh plugin --profile web add dsh-context-domains@${{ steps.meta.outputs.version }}"
             echo '  ```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # 资产挂好、别名 200、npm 发完，这里只负责叫中台：POST context-domains.release 后等这一轮跑完。
+  # 中台按规则「上下文领域：自动上线」把它交给 NAS 的 ops（xrznas/context-domains/release/run.sh），
+  # 那一轮补齐剩下两面：npm 缺的补发、市场条目与这一版不一致就提 PR。
+  #
+  # 口径与 agent-autoloop 的 release.yml 一致（节点 212）：
+  #   - subject 必须是 tag，不能是仓库名：ops.sh 把 subject 原样当 $1 传给 run.sh，含 / 会被判版本号不合法。
+  #   - 幂等键只用 tag，不拼 run id：重跑同一次发版不该再走一遍。
+  #   - 来源必须是 github：hook 只认 source github 那对密钥，写错就进 unrouted、静默不上线。
+  #   - 发不出去要让 workflow 红：没有兜底轮询，这条事件就是唯一的发版信号。
+  notify:
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 发上线事件
+        env:
+          HUB: ${{ secrets.AUTOLOOP_HOOK_URL }}
+          KEY: ${{ secrets.AUTOLOOP_SOURCE_KEY }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          SHA: ${{ github.sha }}
+          UA: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36
+        run: |
+          set -euo pipefail
+          [ -n "$HUB" ] || { echo "没有配 AUTOLOOP_HOOK_URL（bash hub/seed-secrets.sh guicaiyue/dsh-context-domains）"; exit 1; }
+          [ -n "$KEY" ] || { echo "没有配 AUTOLOOP_SOURCE_KEY（bash hub/seed-secrets.sh guicaiyue/dsh-context-domains）"; exit 1; }
+          id="context-domains.release:${REPO}:${TAG}"
+          detail=$(jq -cn --arg repo "$REPO" --arg tag "$TAG" --arg sha "$SHA" \
+            '{repo:$repo, tag:$tag, sha:$sha}')
+          payload=$(jq -cn --arg id "$id" --arg type context-domains.release --arg subject "$TAG" \
+            --arg summary "上下文领域新版本 $TAG（Release 资产已挂上）" --arg detail "$detail" \
+            --arg link "https://github.com/${REPO}/releases/tag/${TAG}" \
+            '{id:$id, type:$type, subject:$subject, summary:$summary, detail:$detail, link:$link}')
+          # 雷池把 curl 的默认 UA 当机器人直接 403；带一个普通浏览器 UA 就放行。
+          resp=$(curl -fsS -A "$UA" -X POST "$HUB/v1/events" \
+            -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d "$payload")
+          echo "$resp"
+          if [ "$(echo "$resp" | jq -r .duplicate)" = "true" ]; then
+            echo "这条事件之前已经记过（同样的 id），没有新的一轮，不用等。"
+            exit 0
+          fi
+          echo "EVENT=$(echo "$resp" | jq -r .event)" >> "$GITHUB_ENV"
+          echo "EVENT_ID=$id" >> "$GITHUB_ENV"
+
+      - name: 等三面收齐
+        env:
+          HUB: ${{ secrets.AUTOLOOP_HOOK_URL }}
+          KEY: ${{ secrets.AUTOLOOP_SOURCE_KEY }}
+          WAIT: "900"
+          UA: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36
+        run: |
+          set -uo pipefail
+          [ -n "${EVENT:-}" ] || { echo "没有新事件（重复触发），不用等。"; exit 0; }
+          rounds=$(( ${WAIT:-900} / 4 ))
+          for i in $(seq 1 $rounds); do
+            sleep 4
+            body=$(curl -fsS -A "$UA" -H "Authorization: Bearer $KEY" "$HUB/v1/events/$EVENT" || true)
+            [ -n "$body" ] || continue
+            state=$(echo "$body" | jq -r '(.runs[0].state) // "none"')
+            echo "第 $i 次：state=$state"
+            case "$state" in
+              done|nothing)
+                summary=$(echo "$body" | jq -r '.runs[0].summary // ""')
+                echo "$summary"
+                # 三面没齐时 NAS 那一轮回的是「没上线：…」。它不是没跑成（不重试），
+                # 但这一版确实还没上全，workflow 要红，否则只有一张卡片、一眼就划过去了。
+                case "$summary" in
+                  没上线*) echo "::error::三面没齐：$summary"; exit 1 ;;
+                esac
+                echo "这一轮做完了。"
+                exit 0 ;;
+              cancelled)
+                echo "这一轮被取消了："; echo "$body" | jq -c '.runs[0]' | head -c 600; exit 1 ;;
+            esac
+          done
+          echo "等了 $((WAIT/60)) 分钟还没结论，去中台看：$EVENT_ID" >&2
+          exit 1
