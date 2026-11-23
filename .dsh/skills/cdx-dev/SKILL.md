@@ -43,13 +43,15 @@ description: 在 dsh-context-domains 里做开发——分析用户要求、定�
 
 ### 三、检查：全绿才算过
 
+**这个仓库只有一道门禁**，就是 `npm run verify`（= `lint` 的 `node --check` + `node --test "test/**/*.test.*"`）。没有 `typecheck`、没有 `format:check`、没有 tsconfig——`npm run` 列一遍就知道：
+
 ```bash
-npm run verify        # lint（全仓库 node --check）+ node --test "test/**/*.test.*"
-npm run typecheck     # tsc -p .
-npm run format:check  # prettier
+npm run verify
 ```
 
-三道都要过。基线是 **23 项**（18 passed / 5 skipped，那 5 项是 `test/api.test.mjs` 没有 cookie jar 时跳过）。
+基线写在这里会过期（现在是 25 项）。**以 `AGENTS.md` 里「提交前必须绿」那一节的数字为准**，跑出来多了少了都对一下，别用旧数字判成败。
+
+`test/api.test.mjs` 那 5 项要 dsh-dev 的 cookie jar，没有就跳过，属正常。
 
 端到端脚本要一台跑着的 DSH，不在 CI 里：
 

@@ -7,3 +7,7 @@ state.json
 
 # 项目内 skill：中台跑这个仓库时由 dsh 从 <cwd>/.dsh/skills 发现（rank 100，高于 $DSH_HOME/skills）
 # 不进 npm 包（package.json 的 files 不含 .dsh），也不进仓库历史以外的任何地方
+
+# 一次性的探针脚本（复现用），不进仓库；要留就写成 test/ 下的正式测试
+probe-*.mjs
+probe-ui-*.mjs

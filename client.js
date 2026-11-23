@@ -724,6 +724,71 @@ window.__ModuleLoader__.load({
       + '先给我一份归类清单，我确认后你用 POST /context-domains/api/domains\n'
       + '（op=create, name, description, members:[{type,name}]）逐条建好。'
 
+    /** 把一次勾选合并进成员列表：只动目标那一项，其余顺序不变。 */
+    function toggleMember(members, type, name, on) {
+      const next = [...(members ?? [])]
+      const index = next.findIndex((m) => m.type === type && m.name === name)
+      if (on && index < 0) next.push({ type, name })
+      if (!on && index >= 0) next.splice(index, 1)
+      return next
+    }
+
+    /**
+     * 成员勾选的写入口。抽出来是为了让 node:test 能直接驱动两次连点，
+     * 不用把 React 设置页整个渲染起来。
+     *
+     * 关键：写必须串行，而且每次都拿队列里的「最新意图」提交。旧实现每次都用
+     * 渲染快照算 next，两次连点会各自提交一份整数组，后写的覆盖先写的。
+     */
+    function createMemberWriter({ write, reload, onBusy, onError }) {
+      let domainId = null
+      let members = []
+      let dirty = false
+      let current = null
+
+      const flush = () => {
+        if (current !== null) return current
+        if (!dirty) return Promise.resolve()
+        current = (async () => {
+          onBusy?.(true)
+          try {
+            while (dirty) {
+              dirty = false
+              const id = domainId
+              const next = members
+              await write(id, next)
+              await reload?.()
+            }
+          } catch (cause) {
+            // 失败就丢掉未落盘意图，下一次勾选重新从页面快照起算，避免把幽灵成员写上去。
+            dirty = false
+            domainId = null
+            members = []
+            onError?.(cause)
+          } finally {
+            onBusy?.(false)
+          }
+        })().finally(() => {
+          current = null
+        })
+        return current
+      }
+
+      return {
+        toggle(id, base, type, name, on) {
+          // 只有换领域时才回到页面快照；同一领域的连点都接在队列里的最新成员后面。
+          if (domainId !== id) {
+            domainId = id
+            members = [...(base ?? [])]
+            dirty = false
+          }
+          members = toggleMember(members, type, name, on)
+          dirty = true
+          return flush()
+        },
+      }
+    }
+
     function DomainsSettings() {
       const [domains, setDomains] = React.useState([])
       const [catalog, setCatalog] = React.useState({ skills: [], tools: [], suggestions: [], unassigned: { skills: [], tools: [] } })
@@ -765,6 +830,18 @@ window.__ModuleLoader__.load({
       }, [domains, selectedId])
 
       const selected = domains.find((domain) => domain.id === selectedId) ?? null
+
+      // 成员写不跟全局 busy 走：勾选是输入，连续点两项必须都能进队。
+      // 跟 busy 一起禁掉复选框的话，浏览器会把第二次点击吞掉，表现仍是「后一个改动丢了」。
+      // 改名 / 删除 / 默认开关仍由 run 的 busy 管。
+      const memberWriter = React.useRef(null)
+      if (memberWriter.current === null) {
+        memberWriter.current = createMemberWriter({
+          write: (id, members) => call('/domains', { op: 'update', id, members }),
+          reload: load,
+          onError: (cause) => setError(cause.message ?? String(cause)),
+        })
+      }
 
       React.useEffect(() => {
         if (!aiOpen) return undefined
@@ -814,11 +891,7 @@ window.__ModuleLoader__.load({
       }
       const setMember = (type, name, on) => {
         if (!selected) return
-        const next = [...(selected.members ?? [])]
-        const index = next.findIndex((m) => m.type === type && m.name === name)
-        if (on && index < 0) next.push({ type, name })
-        if (!on && index >= 0) next.splice(index, 1)
-        void update({ members: next })
+        void memberWriter.current.toggle(selected.id, selected.members ?? [], type, name, on)
       }
 
       const copyPrompt = async () => {
@@ -1124,6 +1197,8 @@ window.__ModuleLoader__.load({
     return {
       name: NS,
       inject: ['slots', 'locale'],
+      // 只给 node:test 用：宿主只读 name / inject / apply，多一个字段不影响加载。
+      __test: { toggleMember, createMemberWriter },
       apply(ctx) {
         ensureStyles()
         ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'context-domains: dictionaries')
