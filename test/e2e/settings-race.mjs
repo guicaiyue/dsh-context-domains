@@ -39,6 +39,7 @@ const browser = await puppeteer.launch({
 const cookie = readAuthCookie(COOKIE_FILE)
 const name = `__cdx-e2e-${Date.now()}`
 let id
+let uiCreatedId
 
 const api = async (body) => {
   const response = await fetch(`${BASE}/context-domains/api/domains`, {
@@ -263,6 +264,39 @@ try {
   const selected = await page.evaluate(() => document.querySelector('.cdx-search-meta')?.innerText.trim() ?? '')
   assert.match(selected, /2/, '页面显示已选数量不是 2')
 
+  // 界面新建：建完必须选中新领域，不能跳回列表第一个；删掉自己建的这个。
+  const knownIds = new Set((await api()).value.domains.map((domain) => domain.id))
+  const createdUi = await page.evaluate(async () => {
+    const before = document.querySelectorAll('.cdx-domain').length
+    document.querySelector('.cdx-side-actions .cdx-btn')?.click()
+    await new Promise((resolve) => setTimeout(resolve, 800))
+    return {
+      before,
+      after: document.querySelectorAll('.cdx-domain').length,
+      selected: document.querySelector('.cdx-domain[aria-selected="true"]')?.innerText ?? '',
+    }
+  })
+  assert.equal(createdUi.after, createdUi.before + 1, '界面新建后列表没有多出领域')
+  assert.match(createdUi.selected, /新领域/, `界面新建后没有选中新领域：${createdUi.selected}`)
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const fresh = (await api()).value.domains.find((domain) => !knownIds.has(domain.id))
+    if (fresh !== undefined) {
+      uiCreatedId = fresh.id
+      break
+    }
+    await wait(100)
+  }
+  assert.notEqual(uiCreatedId, undefined, '界面新建的领域没有落盘')
+  await page.evaluate(() => document.querySelector('.cdx-btn-danger')?.click())
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const gone = !(await api()).value.domains.some((domain) => domain.id === uiCreatedId)
+    if (gone) break
+    await wait(100)
+  }
+  const stillThere = (await api()).value.domains.some((domain) => domain.id === uiCreatedId)
+  assert.equal(stillThere, false, '界面删除没有落盘')
+  uiCreatedId = undefined
+
   console.log(JSON.stringify({
     openMs: Number(openMs.toFixed(1)),
     reopenMs: Number(reopenMs.toFixed(1)),
@@ -271,10 +305,13 @@ try {
     burst: { posts: posts.length, domainGets: domainGets.length, catalogGets: catalogGets.length },
     renamePosts: renamePosts.length,
   }, null, 1))
-  console.log('E2E OK：连点不丢、写合并、乐观打勾、失败回滚、改名防抖、缓存首屏')
+  console.log('E2E OK：连点不丢、写合并、乐观打勾、失败回滚、改名防抖、缓存首屏、界面新建选中')
 } finally {
   if (id !== undefined) {
     await api({ op: 'delete', id }).catch(() => {})
+  }
+  if (uiCreatedId !== undefined) {
+    await api({ op: 'delete', id: uiCreatedId }).catch(() => {})
   }
   await browser.close()
 }

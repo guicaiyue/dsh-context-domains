@@ -1128,9 +1128,11 @@ window.__ModuleLoader__.load({
       // 新建即默认启用：用户建领域的意图就是「要用它」，默认值别再让人多勾一次
       const create = (draft) => run(async () => {
         const created = await call('/domains', { op: 'create', defaultOn: true, ...draft })
+        // 先刷新列表再选中新领域：反过来的话，选中 effect 会拿「还没有新领域」的旧列表
+        // 把刚选的 id 判成失效，跳回第一个领域。
+        await loadDomains()
         settingsCache.selectedId = created.id
         setSelectedId(created.id)
-        await loadDomains()
         broadcast()
       })
       const update = (patch) => run(async () => {
