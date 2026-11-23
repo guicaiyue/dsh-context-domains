@@ -172,10 +172,29 @@ jobs:
   #   - 发不出去要让 workflow 红：没有兜底轮询，这条事件就是唯一的发版信号。
   notify:
     needs: release
+    # release 红也要看一眼：verify 挂了就跳过（那时根本没有 Release），但 npm 那步失败时
+    # Release 已经在，让 NAS 有机会补发——不然「npm 没发上去」只能靠人重跑 workflow。
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: 这一版真有 Release 才叫中台
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$REPO" --json tagName >/dev/null 2>&1; then
+            echo "RELEASE_EXISTS=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          # 没有 Release 就没什么可上线的；release job 已经红了，这里再红一次不添信息。
+          echo "::warning::没有 $TAG 的 Release（release job 多半挂在 verify/打包上了），跳过回调。"
+          exit 0
+
       - name: 发上线事件
+        if: ${{ env.RELEASE_EXISTS == '1' }}
         env:
           HUB: ${{ secrets.AUTOLOOP_HOOK_URL }}
           KEY: ${{ secrets.AUTOLOOP_SOURCE_KEY }}
@@ -206,6 +225,7 @@ jobs:
           echo "EVENT_ID=$id" >> "$GITHUB_ENV"
 
       - name: 等三面收齐
+        if: ${{ env.RELEASE_EXISTS == '1' }}
         env:
           HUB: ${{ secrets.AUTOLOOP_HOOK_URL }}
           KEY: ${{ secrets.AUTOLOOP_SOURCE_KEY }}
