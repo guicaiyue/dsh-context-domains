@@ -11,7 +11,7 @@ description: 给 dsh-context-domains 发一版并确认真的上线了。中台�
 
 1. **工作树干净**：`git status --short` 必须空。有未提交改动就停下问。
 2. **本地没落后**：`git fetch && git log --oneline origin/main..main` 必须空。有就是没推，先推。
-3. **检查全绿**：`npm run verify && npm run typecheck && npm run format:check`。
+3. **检查全绿**：`npm run verify`。**只有这一道**——这个仓库没有 `typecheck`、没有 `format:check`、没有 tsconfig。CI 的 `release.yml` 里 `Verify` 那一步跑的也是它。
 4. **版本号对得上**：`node -p "require('./package.json').version"` 和 `git tag --list "v*" | tail -1` 比一比。**已经存在的版本号不能重发**：`release.yml` 先校验 `tag == v<package.json version>`，推同名 tag 不会触发新发布，只会再打印一次「跳过发布」。
 
 ## bump 级别
