@@ -2,7 +2,9 @@
 
 这个目录是 DSH 插件 `dsh-context-domains`（会话顶部的领域条 + 设置 → 上下文领域）。
 设计与实现记录在 [`DESIGN.md`](DESIGN.md)，契约在 [`SPEC.md`](SPEC.md)，发版见
-[`docs/PUBLISH.md`](docs/PUBLISH.md)，上架见 [`docs/market/README.md`](docs/market/README.md)。
+[`docs/PUBLISH.md`](docs/PUBLISH.md)，上架见 [`docs/market/README.md`](docs/market/README.md)，
+自动化流水线（一个事件怎么走完分析→开发→检查→上线）见
+[`docs/auto-release-pipeline.md`](docs/auto-release-pipeline.md)。
 
 ## 四条硬约束
 

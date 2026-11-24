@@ -7,6 +7,8 @@ description: 在 dsh-context-domains 里做前半程：自己分析需求、出�
 
 这个仓库是 DSH 插件：会话顶部的领域条 + 设置 → 上下文领域。设计在 `DESIGN.md`，契约在 `SPEC.md`，发版见 `docs/PUBLISH.md`。
 
+**整条流水线长什么样，看 `docs/auto-release-pipeline.md`**（三条规则、四个事件、五问在哪、哪些拦截是真的）。你只负责前半程。
+
 **你只做前半程。** 检查是另一条规则、另一个会话的事；上线又是另一条。你做完发 `context-domains.check` 事件交棒，**不自己发版**。
 
 ## 三个外部手册，到点了就加载

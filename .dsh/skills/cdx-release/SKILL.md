@@ -7,6 +7,8 @@ description: 给 dsh-context-domains 发一版并确认真的上线了。中台�
 
 **上线 = 一次 tag 推送。** `release.yml` 只认 `push: tags: ['v*']`，只 commit + push main 会让 `verify` 绿但 npm 和 Release 资产都不动——看起来成功，其实没上线。
 
+流水线全图（你在哪一步、上下各是谁、哪些拦截是真的）见 `docs/auto-release-pipeline.md`。
+
 ## 发之前先确认
 
 1. **工作树干净**：`git status --short` 必须空。有未提交改动就停下问。
