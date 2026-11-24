@@ -1,13 +1,25 @@
 ---
 name: cdx-task
-description: 在 dsh-context-domains 里从零做完一件事：自己分析需求、出实现方案、拆 todo、逐条开发自测、检查、上线。中台把「上下文领域」规则的活派过来时使用——一个事件进来，你负责整件事走到底。用户说「修一下设置页卡顿」「给这个插件加个功能」「发一版」时也用。
+description: 在 dsh-context-domains 里做前半程：自己分析需求、出实现方案、拆 todo、逐条开发自测、收尾。中台把「上下文领域：开发」规则的活派过来时使用。用户说「修一下设置页卡顿」「给这个插件加个功能」时也用。
 ---
 
-# dsh-context-domains：一件事从头做到上线
+# dsh-context-domains：分析 → 开发自测 → 收尾
 
 这个仓库是 DSH 插件：会话顶部的领域条 + 设置 → 上下文领域。设计在 `DESIGN.md`，契约在 `SPEC.md`，发版见 `docs/PUBLISH.md`。
 
-**一个事件进来，四段你自己走完**：分析 → 开发自测 → 检查 → 上线。没有别人替你拆 todo，也没有别的规则接你的话。
+**你只做前半程。** 检查是另一条规则、另一个会话的事；上线又是另一条。你做完发 `context-domains.check` 事件交棒，**不自己发版**。
+
+## 三个外部手册，到点了就加载
+
+这个 DSH home 里已经装好了，用 skill 工具按名字加载：
+
+| 什么时候 | 加载什么 | 拿它干什么 |
+|---|---|---|
+| **分析阶段第一步** | `leader` | 「调研 → 写书 → 验收」那套：能自己查的一律不问、有代码库就实测（命令真的存在吗、基线数字多少、文档和实际差多少）、把要求翻成一份能独立跑完的任务书 |
+| 需求里有说不清的外部东西（这个 API 怎么用、这个库哪个版本、别人怎么解的） | `hv-analysis` | 系统性摸清一个东西：纵向它怎么来的、横向同类怎么做的。**只在需要外部事实时用**，纯改本仓库代码别用 |
+| **全部 todo 打勾之后、交棒之前** | `neat-freak` | 知识治理收尾：文档 / `AGENTS.md` / `DESIGN.md` 跟代码对齐，工作区残留清掉，下一个会话从唯一现役答案开始 |
+
+直接读文件也行：`/home/xirizhi/.dsh/skills/leader/SKILL.md`、`hv-analysis`、`neat-freak` 同目录。
 
 ## 这个仓库只有一道门禁
 
@@ -15,20 +27,21 @@ description: 在 dsh-context-domains 里从零做完一件事：自己分析需�
 npm run verify   # lint（node --check）+ node --test "test/**/*.test.*"
 ```
 
-没有 `typecheck`、没有 `format:check`、没有 tsconfig。CI 的 `release.yml` 里 `Verify` 那一步跑的也是它。基线数字以 `AGENTS.md`「提交前必须绿」那节为准，别用记忆里的旧数字判成败。
+没有 `typecheck`、没有 `format:check`、没有 tsconfig。CI 的 `release.yml` 里 `Verify` 那一步跑的也是它。基线以 `AGENTS.md`「提交前必须绿」那节为准，别用记忆里的旧数字判成败。
 
 改 `client.js` 走热更；改 `index.js` / `lib/**` / `cordis.patch.yml` / `package.json` 的 `dsh` 段必须重启 dsh。
 
 ## 第一段：分析 —— 自己把要求翻成能验收的东西
 
-**不要跳。** 下面这些先读，别凭印象：
+先加载 `leader`，按它的调研法来。**不要跳。**
 
-1. `git log --oneline -8`、`git status`：现在在哪一版、有没有别人的未提交改动
-2. `AGENTS.md` 的四条硬约束——任何一条被碰到就先说出来
-3. `DESIGN.md` 里和这件事有关的段落（`grep -n "<关键词>" DESIGN.md`）
-4. 涉及的代码：`client.js`（浏览器端）、`lib/`（服务端）、`index.js`
+```bash
+git log --oneline -8          # 现在在哪一版
+git status --short            # 有没有别人的未提交改动
+grep -n "<关键词>" DESIGN.md   # 这个东西的设计是怎么写的
+```
 
-产出三样，**写进 `docs/plan/<事项>.md`**，不要只写在正文里（下一轮就看不见了）：
+产出三样，**写进 `docs/plan/<事项>.md`**（下一轮就看不见正文了，文件才是跨轮的载体）：
 
 ```markdown
 # <事项>
@@ -45,10 +58,11 @@ npm run verify   # lint（node --check）+ node --test "test/**/*.test.*"
 
 ## todo
 1. [ ] **一句话说清要做什么**：做法 + 验收条件 + 测试放哪
-2. [ ] ...
 ```
 
 **说「慢了」之前要有数字。** 跑一次计时、数一次请求。没有数字不许写「性能问题」。
+
+**量基线只读不改。** `GET /domains`、`GET /catalog`、DOM 测量都行；不要为了量数字去勾真实领域的复选框（见下面「测试卫生」）。
 
 ## 第二段：开发自测 —— 逐条做，先写会红的测试
 
@@ -62,94 +76,66 @@ npm run verify   # lint（node --check）+ node --test "test/**/*.test.*"
 
 **测试写错了比没写更糟。** 发现测试的预期本身不对（断言了一个本来不该成立的行为），改测试，别改实现去迁就它。
 
-**临时探针用完就删。** 复现用的 `probe-*.mjs` 不进仓库（`.gitignore` 已挡），要么删掉，要么写成 `test/` 下的正式测试。
+### 测试卫生：只许碰自己建的临时领域
 
-## 第三段：检查 —— 全部 todo 打勾才进下一段
+`test/e2e/*.mjs` 和任何探针都跑在**真实运行中的 DSH 上**，那里有用户手写的领域。2026-11-23 两次事故：探针点了已有领域「创造者技能」的复选框，先把它从 4 个成员点到 12 个，后把它整个删掉。
 
-- plan 里 19 条全 `[x]`，一条没打勾就不能说完成
-- `npm run verify` 全绿
-- 改了 `client.js` 的话，**光有单测不够，要看真页面**：`test/e2e/*.mjs`（需要跑着的 DSH，不在 CI 里）
-- 逐条对「用户目标」：那几条可验收的，现在真的成立吗
+硬规矩：
 
-**没验收的不许说成已完成。** 卡上写着「已完成」但仓库里没有对应改动，那就是没做——按仓库事实重写 plan 和卡片。
+- 临时领域名字以 `__cdx-e2e-` 开头，跑完删掉
+- **不许**勾已有领域的成员、不许切它的默认开关、不许删它、不许改名
+- 碰领域的 e2e 必须用 `test/e2e/guard.mjs` 的 `guardDomains()`：建完临时领域拍快照，`finally` 里先 `verify()` 再删临时领域
+- 一次性探针用完就删（`.gitignore` 已挡 `probe-*.mjs`）
 
-## 第四段：上线 —— 一次 tag 推送
+## 第三段：收尾 —— 交棒之前
 
-**上线 = 一次 tag 推送。** `release.yml` 只认 `push: tags: ['v*']`，只 commit + push main 会让 CI 绿但 npm 和 Release 资产都不动——看起来成功，其实没上线。
+全部 todo 打勾之后：
 
-发之前：
+1. **加载 `neat-freak`**，按它说的对齐文档与代码。这个仓库特有要对的几处：
+   - 改了能力描述 → `docs/market/*.yml` 与 `DESIGN.md`
+   - 改了设置页/条子的行为 → `DESIGN.md` 里对应段落
+   - 新增了测试或脚本 → `AGENTS.md` 的基线数字
+2. `npm run verify` 全绿
+3. 改了 `client.js` 的话，**光有单测不够**：跑 `test/e2e/*.mjs` 看真页面
+4. 逐条对「用户目标」：那几条可验收的，现在真的成立吗
 
-1. `git status --short` 必须空
-2. `git fetch && git log --oneline origin/main..main` 必须空
-3. `npm run verify` 全绿
-4. **版本号对得上**：`node -p "require('./package.json').version"` 和 `git tag --list "v*" | tail -1` 比。**已存在的版本号不能重发**——`release.yml` 先校验 `tag == v<package.json version>`，推同名 tag 不会触发新发布
+**没验收的不许说成已完成。** 卡上写着「已完成」但仓库里没有对应改动，那就是没做——按仓库事实改回来。
 
-bump 级别看 `git log --oneline v<上一版>..HEAD`：全是文档/CI/注释 → `patch`；有 `feat` → `minor`；有破坏性改动 → `major`（且先读 `AGENTS.md` 第 2 条，preset 治理不许放宽）。
+## 第四段：交棒给检查
 
-```bash
-# 1. 顶部插一条 ## <新版本> 写清这版改了什么（npm version 不会做这件事）
-# 2. bump，不建 tag 不提交
-npm version patch --no-git-tag-version
-# 3. 提交 + 打标签 + 一次推上去（别分两次）
-git add -A
-git commit -m "chore: release v<版本>"
-git tag v<版本>
-git push origin main --tags
+回执里发事件，**内容要能让检查规则独立判断**：
+
+```json
+{"events":[{"id":"check:<事项>-<日期>","type":"context-domains.check","subject":"<事项>","summary":"<做了什么、verify 多少项、改了哪些文件、plan 在哪>"}]}
 ```
 
-**等 CI，按日志核四行，不看绿勾。** 绿勾只说明 job 没报错，不说明东西发出去了：
+**不发 `context-domains.ready`。** 那是检查通过之后才发的，不是你的活。
 
-```bash
-gh run watch $(gh run list --workflow=release.yml -L1 --json databaseId --jq '.[0].databaseId')
-```
-
-日志里必须有：`Resolve version and check the tag matches`（版本与 tag 一致）、`Publish to npm`（有 `npm notice Publishing` 和 `dsh-context-domains@<版本>`）、`Verify the stable download URL`（200）、`Summary`（版本号）。
-
-然后**独立复核**，不看 CI 自己的结论：
-
-```bash
-npm view dsh-context-domains@<版本> version --registry=https://registry.npmjs.org
-curl -sIL -o /dev/null -w '%{http_code}\n' \
-  https://github.com/guicaiyue/dsh-context-domains/releases/latest/download/dsh-context-domains.tgz
-```
-
-`npm view` 前几十秒可能 404——registry 元数据延迟，不是失败。
-
-**市场条目**：`git diff v<上一版>..v<新版本> -- docs/market/` 非空才跑 `scripts/market-submit.sh`。**这是唯一要人先同意的事**：它 fork 公共仓库 `awesome-dsh-plugin` 并开 PR，是往别人的仓库写东西。开 PR 之前先用 `ask` 问一次。
-
-**发坏了不删 tag 重建。** 删了重建会让 Release 变 untagged draft、稳定别名静默 404。**bump 到下一个版本再发一版**，这就是全部恢复手段。
+计划文件路径、改了哪些文件、`npm run verify` 的实际输出都写进 summary，检查规则靠这些开工。
 
 ## 一轮做不完就约下一轮
 
-19 条不是一轮干完的。**用 `later` 约自己**，key 用事项名，别用事件：
+todo 不是一轮干完的。用 `later` 约自己，key 用事项名：
 
 ```json
-{"later":[{"key":"settings-lag-next","at":"<30 分钟后，带时区>","about":"接着做 plan 里第 5–8 条；上一轮做完 1–4，verify 用过 25/25"}]}
+{"later":[{"key":"<事项>-next","at":"<30 分钟后，带时区>","about":"接着做 plan 里第 5–8 条；上一轮做完 1–4，verify 过了"}]}
 ```
 
-下一轮回来时，资料里的 `waiting` 有这条复查的 key，`open` 里有进度卡，`events` 里有原来的事。**按 plan 文件接着做，不要重头数。**
+下一轮回来时 `waiting` 里有这条复查，`open` 里有进度卡。**按 plan 文件接着做，不要重头数。**
 
-全部做完、检查通过、上线完成之后，**取消没到期的复查**：
-
-```json
-{"later":[{"key":"settings-lag-next","cancel":true}]}
-```
+全部做完、`check` 事件发出之后，**取消没到期的复查**：`{"later":[{"key":"<事项>-next","cancel":true}]}`。
 
 ## 进度卡
 
-用 `autoloop-todo` 那个 skill：固定 key（如 `cdx-settings-lag`），每轮更新同一条 Telegram 消息。
-
-标题带计数（`设置页卡顿 · 6/19`），正文只放当前一屏（做完的压成一行计数 + 正在做 + 接下来两三条 + 指针「全部 19 条见 docs/plan/settings-lag.md」）。别把 19 条塞进卡片正文，通道会在 1500 字截断。
+用 `autoloop-todo` 那个 skill：固定 key（如 `cdx-<事项>`），每轮更新同一条 Telegram 消息。标题带计数，正文只放当前一屏，详细的写进 plan 文件。
 
 ## 每一轮怎么汇报
 
 正文第一行就是结论，从第一个字开始写做成了什么。**不写**「我先读一下」「分析完毕」「下面是这一轮的报告」。
 
-- 做完了、上线了：`请求头签名已加：v0.4.3 已发，npm 与 Release 资产都核对过`
-- 做了一部分：`设置页连点丢改动已修（第 1/19 条），verify 25/25，接着做第 2 条`
+- 做完了、交棒了：`设置页连点丢改动已修，19/19 全绿，已交给检查（verify 34/34）`
+- 做了一部分：`设置页连点丢改动已修（第 1/19 条），verify 34/34，接着做第 2 条`
 - 卡住要人定：首行写 `待你处理：<原因>`，用 `ask`
-
-提交号、版本号放括号里，别当主语。**「已通过」「核对完毕」单独出现等于没说。**
 
 ## 不要碰
 
@@ -157,6 +143,7 @@ curl -sIL -o /dev/null -w '%{http_code}\n' \
 - `assets/` 里的截图（是真机跑出来的）
 - `docs/market/*.yml` 里手写 `npm:` 字段（市场校验会拒）
 - `tools.restrict` / `guard` 装到别人的 preset 上（`managesPreset()` 是判据）
+- **真实实例上的已有领域**（见「测试卫生」）
 
 ## 高危，先问人
 

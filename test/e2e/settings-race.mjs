@@ -14,6 +14,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import puppeteer from 'puppeteer-core'
+import { guardDomains } from './guard.mjs'
 
 const BASE = process.argv[2] ?? 'http://127.0.0.1:3080'
 const COOKIE_FILE = process.env.CDX_COOKIE_FILE ?? `${process.env.HOME}/.local/state/dsh-dev/cookies.txt`
@@ -40,6 +41,7 @@ const cookie = readAuthCookie(COOKIE_FILE)
 const name = `__cdx-e2e-${Date.now()}`
 let id
 let uiCreatedId
+let guard
 
 const api = async (body) => {
   const response = await fetch(`${BASE}/context-domains/api/domains`, {
@@ -92,6 +94,10 @@ try {
 
   const created = await api({ op: 'create', name, members: [] })
   id = created.value.id
+
+  // 从这一刻起盯着别人的领域：只许自己建的临时领域变化。
+  // 2026-11-23 两次事故（点坏、删掉「创造者技能」）都是这里漏了护栏。
+  guard = await guardDomains(async () => (await api()).value.domains, { note: 'settings-race' })
 
   // 账号菜单 → 设置 → 上下文领域。菜单项文案随语言变，两种都认。
   await page.evaluate(() => document.querySelector('[data-slot="settings.launcher"] button')?.click())
@@ -307,6 +313,8 @@ try {
   }, null, 1))
   console.log('E2E OK：连点不丢、写合并、乐观打勾、失败回滚、改名防抖、缓存首屏、界面新建选中')
 } finally {
+  // 先核别人的领域有没有被碰过，再收拾自己的临时领域。
+  if (guard !== undefined) await guard.verify()
   if (id !== undefined) {
     await api({ op: 'delete', id }).catch(() => {})
   }
