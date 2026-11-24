@@ -66,7 +66,7 @@ npm run verify   # lint（node --check）+ node --test "test/**/*.test.*"
 不合格就发事件退回，**说清哪一问答不上、证据是什么、要它做到什么**：
 
 ```json
-{"events":[{"id":"build:<事项>-<日期>-<第几次>","type":"context-domains.build","subject":"<事项>","summary":"第 2 问不合格：client.js 的 setMember 并发写还是两份快照，连点仍会丢；证据：test/e2e/settings-race.mjs 连点两项只落 1 项。要它按 plan 第 3 条重做"}]}
+{"events":[{"id":"build:<事项>-<日期>-<第几次>","type":"context-domains.develop","subject":"<事项>","summary":"第 2 问不合格：client.js 的 setMember 并发写还是两份快照，连点仍会丢；证据：test/e2e/settings-race.mjs 连点两项只落 1 项。要它按 plan 第 3 条重做"}]}
 ```
 
 一次只说清必须修的那几条，别把「建议」混进「必须」。**能过的就让它过**，不要因为风格偏好打回去。

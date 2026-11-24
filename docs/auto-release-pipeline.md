@@ -6,7 +6,7 @@
 
 ## 一句话
 
-你发**一个** `context-domains.task` 事件，然后什么都不用管：
+你发**一个** `context-domains.develop` 事件，然后什么都不用管：
 
 ```
 分析 → 开发自测 → 收尾  →【检查：五问】→ 上线
@@ -18,7 +18,7 @@
 ## 全图
 
 ```
-你 emit context-domains.task
+你 emit context-domains.develop
         │
         ▼
 ┌─ 上下文领域：开发 ───────────────────────────────────┐
@@ -53,7 +53,7 @@
 │   5. 基线对不对？          抽验两个，实测写进结论      │
 │                                                       │
 │  全过      → emits context-domains.ready             │
-│  有问不合格 → emits context-domains.build             │
+│  有问不合格 → emits context-domains.develop           │
 └──────────┬────────────────────────┬───────────────────┘
            │ build（退回）           │ ready（通过）
            ▼                        ▼
@@ -75,10 +75,13 @@
 
 | 事件类型 | 谁发 | 谁接 | 含义 |
 |---|---|---|---|
-| `context-domains.task` | 你（或别的规则） | 开发 | 一件新活 |
-| `context-domains.build` | 检查 | 开发 | 退回：哪一问没过、证据是什么 |
+| `context-domains.develop` | 你（或别的规则）· **也由检查退回时发** | 开发 | 一件新活，或者打回重做 |
 | `context-domains.check` | 开发 | 检查 | 交棒：做了什么、verify 多少项、plan 在哪 |
 | `context-domains.ready` | 检查 | 上线 | 通过：五问全过，可以发 |
+
+**新建和退回共用 `context-domains.develop` 一个类型**，所以开发那条规则靠内容分辨：
+`detail` 在说现象还是在说哪一问不合格、`open` 里有没有同一事项的卡（`cdx-<事项>` /
+`cdx-<事项>-check`）、`docs/plan/<事项>.md` 存不存在。三条 skill 里都写了这件事。
 
 ## 五问在哪一行
 
@@ -106,7 +109,7 @@
 每发一次事件 hops 加 1，超过 8 层只记录不派发：
 
 ```
-task(0) → check(1) → build(2) → check(3) → build(4) → check(5) → build(6) → check(7) → ready(8)
+develop(0) → check(1) → develop(2) → check(3) → develop(4) → check(5) → develop(6) → check(7) → ready(8)
 ```
 
 第 4 次退回就撞上限。撞到说明需求没定清楚，回头改需求，别继续退。
