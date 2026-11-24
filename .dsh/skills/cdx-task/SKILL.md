@@ -134,7 +134,7 @@ grep -n "<关键词>" DESIGN.md   # 这个东西的设计是怎么写的
 {"events":[{"id":"check:<事项>-<日期>","type":"context-domains.check","subject":"<事项>","summary":"<做了什么、verify 多少项、改了哪些文件、plan 在哪>"}]}
 ```
 
-**不发 `context-domains.ready`。** 那是检查通过之后才发的，不是你的活。
+**不发 `context-domains.release`。** 那是检查通过之后才发的，不是你的活。
 
 计划文件路径、改了哪些文件、`npm run verify` 的实际输出都写进 summary，检查规则靠这些开工。
 

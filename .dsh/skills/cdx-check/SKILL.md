@@ -74,7 +74,7 @@ npm run verify   # lint（node --check）+ node --test "test/**/*.test.*"
 ## 通过怎么写
 
 ```json
-{"events":[{"id":"ready:<事项>-<日期>","type":"context-domains.ready","subject":"<事项>","summary":"五问全过：19/19 todo 有对应改动；verify 34/34；e2e settings-race 连点两项都落盘；用户目标 3 条各有实测数字（12–23ms / 0.9–3.7ms / 1 个写）"}]}
+{"events":[{"id":"ready:<事项>-<日期>","type":"context-domains.release","subject":"<事项>","summary":"五问全过：19/19 todo 有对应改动；verify 34/34；e2e settings-race 连点两项都落盘；用户目标 3 条各有实测数字（12–23ms / 0.9–3.7ms / 1 个写）"}]}
 ```
 
 summary 里要带上**你亲自跑出来的数字和命令名**，这样上线规则和人都能一眼看出你核过什么。

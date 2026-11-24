@@ -1,6 +1,6 @@
 ---
 name: cdx-release
-description: 给 dsh-context-domains 发一版并确认真的上线了。中台把「上下文领域：上线」规则的活派过来、收到 context-domains.ready 事件时使用；用户说「发一版」「发布」「打个 tag」时也用。
+description: 给 dsh-context-domains 发一版并确认真的上线了。中台把「上下文领域：发布」规则的活派过来、收到 context-domains.release 事件时使用；用户说「发一版」「发布」「打个 tag」时也用。
 ---
 
 # dsh-context-domains 上线
