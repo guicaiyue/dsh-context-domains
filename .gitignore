@@ -11,3 +11,7 @@ state.json
 # 一次性的探针脚本（复现用），不进仓库；要留就写成 test/ 下的正式测试
 probe-*.mjs
 probe-ui-*.mjs
+
+# e2e 收尾账本：跑完会自动删；只有崩在中间时才留下，供下次运行 / npm run e2e:restore 恢复
+.cdx-e2e-journal.json
+.cdx-e2e-journal.json.*.tmp

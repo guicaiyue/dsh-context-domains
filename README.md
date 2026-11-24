@@ -157,12 +157,15 @@ curl -s -b <cookie> http://127.0.0.1:3080/context-domains/api/health
 ```bash
 npm run verify                                     # 语法检查 + 全部 *.test.*（CI 跑这条）
 npm run test:integration                           # 打到跑着的 dsh（默认 127.0.0.1:3080 + cookie jar）
-node test/e2e/mask.mjs http://127.0.0.1:3080       # 端到端：关领域 → maskProbe 全为 false
+node test/e2e/mask.mjs http://127.0.0.1:3080       # 端到端：临时领域关→遮罩、开→恢复；不碰真实领域
+npm run e2e:restore                                # 硬杀后按账本收尾（重跑 mask 也会先自动恢复）
 node test/e2e/mcp.mjs  http://127.0.0.1:3080       # 端到端：MCP 工具整块装卸（需第三方来源）
 ```
 
 `test/api.test.mjs` 是集成测试：找不到 cookie jar 时整组跳过，所以 CI 里跑的是
-纯函数 + 迁移那 10 项（`npm run test` 会显示 `skipped 5`）。
+纯函数 + 迁移那 42 项（`npm run test` 会显示 `skipped 5`）。
+`mask.mjs` 动手前把会话选择与真实领域开关写进 `.cdx-e2e-journal.json`，收尾按账本恢复并核实；
+恢复不了会逐个点名哪个真实领域没回来，不会静默通过。
 
 ## 发版（git workflow）
 

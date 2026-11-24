@@ -1142,3 +1142,45 @@ LLM patch 抄在跑的 profile），实测：
 - `lib/http.js`：`POST /compaction`，`/snapshot`、`/health` 多一个 `compaction` 块。
 - `lib/store.js`：`compaction = { budgetTokens, at }`（读侧缺省 50 万，等于原来 0.5 × 1M 的口径）。
 - `client.js`：`CompactionCounter`，渲染在 `.cdx-bar` 最右侧（`chips` 之后）。
+
+---
+
+## 18. 遮罩 e2e 的安全收尾：只碰临时领域，崩了也能恢复（v0.4.5）
+
+### 18.1 事故
+
+2026-11-24 arch-desktop 报障：`test/e2e/mask.mjs` 原来会挑一个真实领域，`POST /toggle enabled:false`，
+验完再 `enabled:true`。复原是第 56 行的一句裸调用，没有 `try/finally`、没有信号处理：
+页面超时、选择器改了、进程被杀，任何一步崩掉，真实领域就一直是关着的。`guardDomains()` 只比对
+`GET /domains` 的 members/defaultOn/order，**不看会话级 `loaded`**，所以连护栏也发现不了。
+
+### 18.2 新规矩
+
+1. 遮罩 e2e 只建一个 `__cdx-e2e-mask-<时间戳>-<pid>` 临时领域，只 toggle 它；真实领域一个都不开关。
+   成员从 `/catalog` 的「未归入领域」skill 里挑；没有就退到「本会话没请求、也没被单独排除」的领域成员，
+   两者都没有就报错停下——绝不为造出遮罩变化去关真实领域。
+2. 动手前写账本 `.cdx-e2e-journal.json`（临时文件 + fsync + rename）：会话选择、excluded、
+   每个真实领域的 `loaded`、临时领域名/id、skill。
+3. 收尾三层：`try/finally`、SIGINT/SIGTERM/SIGHUP、下次启动 `recover()`。恢复后重新读快照核实。
+4. `guardDomains()` + 会话指纹（真实领域 `loaded` + excluded）双保险；恢复过真实领域也判本轮失败
+   （说明脚本有 bug），不留「悄悄修好就算过」。
+5. 恢复不了：保留账本，逐个点名「哪个真实领域应该是开/关，现在是什么」，附
+   `npm run e2e:restore`，非零退出。
+
+### 18.3 Puppeteer 会抢信号
+
+`@puppeteer/browsers` 在 launch 时默认订阅 SIGINT：处理器先 kill 浏览器，再同步
+`process.exit(130)`。自己的 `process.on('SIGINT')` 即便先注册，异步收尾也来不及跑
+（实测：日志刚打印「收到 SIGINT」进程就退出，临时领域还在）。`puppeteer.launch()` 必须传
+`handleSIGINT:false` / `handleSIGTERM:false` / `handleSIGHUP:false`，收尾和关浏览器都由脚本自己做。
+
+### 18.4 验证（2026-11-24，本机 `127.0.0.1:3080`）
+
+| 场景 | 结果 |
+|---|---|
+| 正常跑 | 临时领域关→`maskProbe.modelInvocable=false`，开→`effective.skills` 包含成员，再关→又遮罩；真实领域与会话选择前后一致 |
+| SIGINT（临时领域已建） | 退出 130，账本清空，临时领域删除，会话选择回到跑前 |
+| 模拟硬杀（留下账本 + 打开的临时领域） | 下一次 `mask.mjs` 先打印「上一次运行没正常收尾，已先恢复」再继续；`npm run e2e:restore` 也能单独清干净 |
+| 恢复失败 | 账本保留、点名真实领域、非零退出（`test/e2e-safety.test.mjs` 假 API 覆盖） |
+
+单元测试 `test/e2e-safety.test.mjs` 13 项，不连 DSH；`npm run verify` 47 项全绿。
